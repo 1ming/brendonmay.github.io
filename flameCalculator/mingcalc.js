@@ -154,7 +154,7 @@ function update_pool(pool, key){
 // calculate the probability that the target will be met within num_draws total lines
 // num_draws: total number of lines we can "draw"/pick out of the pool, once
 // pool: list of valid lines that have not yet been drawn
-function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data) {
+function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, parents) {
   debug_data.count++
   if (num_draws == 0 || pool.length == 0) {
     return 0
@@ -163,11 +163,14 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data) {
   const num_remaining_items = pool.length + num_junk
   let p = 0
 
+  parents.push(line != null ? line.name : "null")
+
   if (line != null) {
     for (const tier in line.tiers) {
       if (line.tiers[tier].score >= target) {
         p += line.tiers[tier].p
         debug_data.lines_picked.push(line.name + " (finished), " + tier + ", " + target)
+        debug_data.paths.push(parents)
       }
       else {
         const new_target = target - line.tiers[tier].score
@@ -177,7 +180,7 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data) {
         for (const succ_line_key in pool) {
           // remove this item from the pool for the next round
           const new_pool = update_pool(pool, succ_line_key)
-          p += (1 / num_remaining_items) * get_p_recursive(pool[succ_line_key], new_target, new_pool, num_junk, num_draws - 1, debug_data)
+          p += (1 / num_remaining_items) * get_p_recursive(pool[succ_line_key], new_target, new_pool, num_junk, num_draws - 1, debug_data, parents)
         }
       }
     }
@@ -187,13 +190,13 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data) {
     for (const succ_line_key in pool) {
       // remove the  item from the pool for the next round
       const new_pool = update_pool(pool, succ_line_key)
-      p += (1 / num_remaining_items) * get_p_recursive(pool[succ_line_key], target, new_pool, num_junk, num_draws - 1, debug_data)
+      p += (1 / num_remaining_items) * get_p_recursive(pool[succ_line_key], target, new_pool, num_junk, num_draws - 1, debug_data, parents)
     }
   }
 
   if (pool.length > 0 && num_junk > 0) {
     // recurse on all junk lines (lumped)
-    p += (num_junk / num_remaining_items) * get_p_recursive(null, target, pool, num_junk - 1, num_draws - 1, debug_data)
+    p += (num_junk / num_remaining_items) * get_p_recursive(null, target, pool, num_junk - 1, num_draws - 1, debug_data, parents)
   }
 
   return p
@@ -267,10 +270,11 @@ function getProbability(class_type, level, flame_type, is_adv) {
 
   // compute the probability of obtaining the target flame score
   let debug_data = {
+    count: 0,
     lines_picked: [],
-    count: 0
+    paths: []
   }
-  const result = get_p_recursive(null, 60, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data)
+  const result = get_p_recursive(null, 20, valid_lines, NUM_LINE_TYPES - valid_lines.length, 2, debug_data, [])
 
   return result
 }
