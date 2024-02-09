@@ -105,6 +105,7 @@ const FLAME_SCORE = {
 const CLASS_TYPE = {
   NORMAL: "Normal",
   XENON: "Xenon",
+  TEST: "Test",
 };
 
 // the quantity of each line type that contributes to the flame score for a class
@@ -117,6 +118,9 @@ const CLASS_LINES = {
   [CLASS_TYPE.XENON]: {
     [LINETYPE.MAIN_STAT]: 3, [LINETYPE.COMBO_XENON_DOUBLE]: 3, [LINETYPE.COMBO_MAIN_JUNK]: 3,
     [LINETYPE.XENON_ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
+  },
+  [CLASS_TYPE.TEST]: {
+    [LINETYPE.MAIN_STAT]: 1, [LINETYPE.ATTACK]: 1,
   }
 };
 
@@ -134,63 +138,116 @@ function is_in_level_range(level_range_str, level_num) {
   return level_num >= low && level_num <= high;
 }
 
-// remove a line from the pool by key
-function update_pool(pool, key) {
+// remove a line from the pool by index
+function removed_from_pool(pool, index) {
   const new_pool = [];
   for (const item in pool) {
-    if (item !== key) {
+    if (item !== index) {
       new_pool.push(pool[item]);
     }
   }
   return new_pool;
 }
 
+// update pool such that lines that cannot possibly lead to success are removed
+// note: lines in the pool are ordered by f_max, descending
+// where f_max = the maximum possible flame score for a line to get (using its highest tier)
+// n = number of remaining draws
+function prune_pool(current_pool, target, num_draws) {
+  // first, check if the best combination of lines could even meet the target
+  // if not, remove all items from the pool to end this path early
+  const max_score = current_pool.slice(0, num_draws).reduce((acc, item) => acc + item.f_max, 0);
+  if (max_score < target) {
+    return [];
+  }
+
+  const new_pool = current_pool.slice(0, num_draws - 1);  // first n - 1 items
+  const f0 = new_pool.reduce((acc, item) => acc + item.f_max, 0);
+  const remaining_pool = current_pool.slice(num_draws - 1);
+  for (const line of remaining_pool) {
+    if ((f0 + line.f_max) >= target) {
+      // only add things to the pool that potentially lead to a successful path
+      new_pool.push(line);
+    }
+    else {
+      // any lines after this one will also be too low
+      break;
+    }
+  }
+
+  return new_pool;
+
+}
+
+
 // calculate the probability that the target will be met within num_draws total lines
 // num_draws: total number of lines we can "draw"/pick out of the pool, once
 // pool: list of valid lines that have not yet been drawn
 function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, parents) {
   debug_data.count++;
-  if (num_draws === 0 || pool.length === 0) {
-    return 0;
-  }
-
   const num_remaining_items = pool.length + num_junk;
   let p = 0;
 
-  parents.push(line != null ? line.name : "null");
-
-  if (line != null) {
+  // find possible branches
+  // generate list of adjusted targets and their corresponding probabilities
+  // after applying the flame score gained from a certain tier of this line
+  // null/junk lines do not have different tiers so there will only be 
+  // 1 branch with a probability of 100%
+  const new_targets = [];  // list of "tuples" (new_target_value, probability)
+  if (line == null) {
+    new_targets.push([target, 1]);
+  }
+  else {
     for (const tier in line.tiers) {
-      if (line.tiers[tier].score >= target) {
-        p += line.tiers[tier].p;
-        debug_data.lines_picked.push(line.name + " (finished), " + tier + ", " + target);
+      const p_tier = line.tiers[tier].p;
+      const score_tier = line.tiers[tier].score;
+      if (score_tier >= target) {
+        p += p_tier;
+        debug_data.lines_picked.push(line.name + " (finished), " + tier + ", " + score_tier + "/" + target);
         debug_data.paths.push(parents);
       }
       else {
-        const new_target = target - line.tiers[tier].score;
-        debug_data.lines_picked.push(line.name + " (partial), " + tier + ", " + target);
-
-        // recurse on all other lines in pool
-        for (const succ_line_key in pool) {
-          // remove this item from the pool for the next round
-          const new_pool = update_pool(pool, succ_line_key);
-          p += (1 / num_remaining_items) * get_p_recursive(pool[succ_line_key], new_target, new_pool, num_junk, num_draws - 1, debug_data, parents);
-        }
+        // debug_data.lines_picked.push(line.name + " (partial), " + tier + ", " + score_tier + "/" + target);
+        new_targets.push([target - score_tier, p_tier]);
       }
     }
   }
-  else {
-    // recurse on all valid lines without changing the target
-    for (const succ_line_key in pool) {
-      // remove the  item from the pool for the next round
-      const new_pool = update_pool(pool, succ_line_key);
-      p += (1 / num_remaining_items) * get_p_recursive(pool[succ_line_key], target, new_pool, num_junk, num_draws - 1, debug_data, parents);
-    }
+
+  // if there's no more draws after this, just return the probability of succeeding based
+  // on this line
+  if (num_draws === 0 || pool.length === 0) {
+    return p;
   }
 
-  if (pool.length > 0 && num_junk > 0) {
+  parents.push(line != null ? line.name : "null");
+
+  // for each different possible target, prune the pool in case some lines
+  // become junk (no possible way to sum up to target)
+  for (const branch of new_targets) {
+    const new_target = branch[0];
+    const p_target = branch[1];
+
+    const new_pool = prune_pool(pool, new_target, num_draws);
+
+    if (new_pool.length === 0) {
+      // no combination of subsequent draws could result in success for this target
+      continue;
+    }
+
+    // any pruned lines become junk
+    num_junk += pool.length - new_pool.length;
+
+    // recurse on all successor lines in pool
+    for (let i = 0; i < new_pool.length; i++) {
+      p += p_target * (1 / num_remaining_items) * get_p_recursive(
+        new_pool[i], new_target, removed_from_pool(new_pool, i), num_junk, num_draws - 1, debug_data, parents);
+    }
+
     // recurse on all junk lines (lumped)
-    p += (num_junk / num_remaining_items) * get_p_recursive(null, target, pool, num_junk - 1, num_draws - 1, debug_data, parents);
+    if (num_junk > 0) {
+      p += p_target * (num_junk / num_remaining_items) * get_p_recursive(
+        null, new_target, new_pool, num_junk - 1, num_draws - 1, debug_data, parents);
+    }
   }
 
   return p;
@@ -198,8 +255,7 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
 }
 
 // TODO ming: decide how to organize this later
-// calculate the flame value (not flame score) of a tier based on line type and level
-// this is the flame number we see on the item directly (e.g. +30 STR, +5% All Stat, +4 Weapon Attack, etc)
+// calculate the flame value (not flame score) of a tier based on line type and level // this is the flame number we see on the item directly (e.g. +30 STR, +5% All Stat, +4 Weapon Attack, etc)
 function get_tier_value(line_type, tier, level, is_adv, base_att) {
   if (base_att != null) {
     // weapon flame changes based on flame advantage and base attack
@@ -275,13 +331,18 @@ function getProbability(class_type, level, flame_type, is_adv) {
     }
   }
 
+  // sort lines in decreasing order of f_max (maximum possible flame score)
+  // this is used to make pruning the probability tree easier
+  valid_lines.sort((a, b) => (b.f_max - a.f_max));
+
   // compute the probability of obtaining the target flame score
+  // ming: sums up across all successful paths of the "probability tree" (not sure about the term)
   let debug_data = {
     count: 0,
     lines_picked: [],
     paths: []
   };
-  const result = get_p_recursive(null, 20, valid_lines, NUM_LINE_TYPES - valid_lines.length, 2, debug_data, []);
+  const result = get_p_recursive(null, 165, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
 
   return result;
 }
