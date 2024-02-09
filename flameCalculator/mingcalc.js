@@ -15,6 +15,8 @@ const TIER_PROBABILITIES = {
   meisterFusion: { 3: 0, 4: 0.4, 5: 0.45, 6: 0.14, 7: 0.01 },
 };
 
+var stat_equivalences = { "all_stat": 12, "secondary_stat": 0.066667, "attack": 3, "dmg": 15 }
+
 var stat_per_tier = {
   "120-139": 7,
   "140-159": 8,
@@ -65,6 +67,66 @@ let hp_stat_per_tier = {
   "250+": 700,
 }
 
+
+const NUM_LINE_TYPES = 19
+
+// categorize lines based on how they will affect flame score calculations
+// for example, most classes will have:
+// 1x Main, 1x Secondary, 1x Main/Second, 2x Main/Junk, 2x Second/Junk
+const LINETYPE = {
+  MAIN_STAT: "Main Stat",
+  SECONDARY_STAT: "Secondary Stat",
+  COMBO_MAIN_SECOND: "Combo Main/Second",
+  COMBO_MAIN_JUNK: "Combo Main/Junk",
+  COMBO_SECOND_JUNK: "Combo Second/Junk",
+  ALLSTAT: "All Stat %",
+  XENON_STAT: "Xenon Stat",
+  XENON_COMBO_2: "Xenon Combo Stat/Stat",
+  XENON_COMBO_1: "Xenon Combo Stat/Junk",
+  XENON_ALLSTAT: "Xenon All Stat %",
+}
+
+const COMBO_LINES = [
+  LINETYPE.COMBO_MAIN_SECOND,
+  LINETYPE.COMBO_MAIN_JUNK,
+  LINETYPE.COMBO_SECOND_JUNK,
+  LINETYPE.XENON_COMBO_2,
+  LINETYPE.XENON_COMBO_1,
+]
+
+// map a function to calculate flame score for each line type
+const FLAME_SCORE = {
+  [LINETYPE.MAIN_STAT]: (value) => value,
+  [LINETYPE.SECONDARY_STAT]: (value) => stat_equivalences.secondary_stat * value,
+  [LINETYPE.COMBO_MAIN_SECOND]: (value) => value + stat_equivalences.secondary_stat * value,
+  [LINETYPE.COMBO_MAIN_JUNK]: (value) => value,
+  [LINETYPE.COMBO_SECOND_JUNK]: (value) => stat_equivalences.secondary_stat * value,
+  [LINETYPE.ALLSTAT]: (value) => value * stat_equivalences.all_stat,
+  [LINETYPE.XENON_STAT]: (value) => value / 3,
+  [LINETYPE.XENON_COMBO_2]: (value) => 2 * value / 3,
+  [LINETYPE.XENON_COMBO_1]: (value) => value / 3,
+  [LINETYPE.XENON_ALLSTAT]: (value) => value * stat_equivalences.all_stat
+}
+
+const CLASS_TYPE = {
+  NORMAL: "Normal",
+  XENON: "Xenon",
+}
+
+// the quantity of each line type that contributes to the flame score for a class
+// used to generate the pool of valid (non-junk) lines
+const CLASS_LINES = {
+  [CLASS_TYPE.NORMAL]: {
+    [LINETYPE.MAIN_STAT]: 1, [LINETYPE.SECONDARY_STAT]: 1, [LINETYPE.COMBO_MAIN_SECOND]: 1,
+    [LINETYPE.COMBO_MAIN_JUNK]: 2, [LINETYPE.COMBO_SECOND_JUNK]: 2, [LINETYPE.ALLSTAT]: 1
+  },
+  [CLASS_TYPE.XENON]: {
+    [LINETYPE.XENON_STAT]: 3, [LINETYPE.XENON_COMBO_1]: 2, [LINETYPE.XENON_COMBO_2]: 4,
+    [LINETYPE.XENON_ALLSTAT]: 1
+  }
+}
+
+
 // check if a level number is within a level range string
 // data for value per tier has a level range string as key (e.g. "140-149")
 function is_in_level_range(level_range_str, level_num) {
@@ -84,24 +146,30 @@ function get_p(line, target, pool, num_junk, num_draws) {
 
 }
 
-
+// TODO ming: decide how to organize this later
 // calculate the flame value of a tier based on line type and level
 // this is the flame number we see on the item directly (e.g. +30 STR, +5% All Stat, +4 Weapon Attack, etc)
 // for stat based flames, value = tier * stat_per_tier[level_range]
 // for weapons, there are different values per tier based on flame advantage and we need the base attack value of the weapon
 function get_tier_value(line_type, tier, level, is_adv, base_att) {
 
-  // will be different per line type
+  if (line_type == LINETYPE.ALLSTAT) {
+    return tier
+  }
+
+  // will be different for weapons
   for (const level_range_str in stat_per_tier) {
-    if (is_in_level_range(level_range_str, level)){
-      return tier * stat_per_tier[level_range_str]
+    if (is_in_level_range(level_range_str, level)) {
+      if (COMBO_LINES.includes(line_type)) {
+        return tier * combo_stat_per_tier[level_range_str]
+      }
+      else {
+        return tier * stat_per_tier[level_range_str]
+
+      }
+
     }
   }
-}
-
-// return the flame score for a given value based on the line type and class
-function get_score(value, line_type, class_type){
-  
 }
 
 // get the probability, value, and flame score of each tier for this particular line type
@@ -121,11 +189,11 @@ function getLineData(line_type, level, is_adv, flame_type, class_type) {
   for (const key in TIER_PROBABILITIES[flame_type]) {
     // all tiers are reduced by 2 for non-flame advantaged items
     const tier = is_adv ? key : key - 2
-    const tier_value = get_tier_value(null, tier, 160, false, null)
+    const tier_value = get_tier_value(line_type, tier, level, is_adv, null)
     line.tiers[tier] = {
       p: TIER_PROBABILITIES[flame_type][key],
       value: tier_value,
-      score: get_score(tier_value, line_type, class_type)
+      score: FLAME_SCORE[line_type](tier_value)
     }
   }
 
@@ -133,10 +201,26 @@ function getLineData(line_type, level, is_adv, flame_type, class_type) {
 }
 
 // calculate the probability of obtaining a target flame score
-function getProbability() {
+function getProbability(class_type, level, flame_type, is_adv) {
+  // generate pool of valid line objects containing attributes such as:
+  // tiers, values, probabilities which are based on flame type used and level
+  const valid_lines = []
+  for (const key in CLASS_LINES[class_type]) {
+    for (let i = 0; i < CLASS_LINES[class_type][key]; i++) {
+      valid_lines.push(getLineData(key, level, is_adv, flame_type, class_type))
+    }
+  }
 
-  getLineData(null, 100, false, "powerful", null)
+  // compute the probability of obtaining the target flame score
+  const result = get_p(null, 30, valid_lines, NUM_LINE_TYPES - valid_lines.length, 1)
 
+  return result
 }
 
-getProbability()
+// for testing
+const class_type = CLASS_TYPE.NORMAL
+const level = 130
+const flame_type = "powerful"
+const is_adv = true
+
+getProbability(class_type, level, flame_type, is_adv)
