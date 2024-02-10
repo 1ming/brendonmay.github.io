@@ -67,6 +67,17 @@ let hp_stat_per_tier = {
   "250+": 700,
 };
 
+function geoDistrQuantile(p) {
+  var mean = 1 / p;
+
+  var median = Math.log(1 - 0.5) / Math.log(1 - p);
+  var seventy_fifth = Math.log(1 - 0.75) / Math.log(1 - p);
+  var eighty_fifth = Math.log(1 - 0.85) / Math.log(1 - p);
+  var nintey_fifth = Math.log(1 - 0.95) / Math.log(1 - p);
+
+  return { mean: mean, median: median, seventy_fifth: seventy_fifth, eighty_fifth: eighty_fifth, nintey_fifth: nintey_fifth };
+}
+
 
 const NUM_LINE_TYPES = 19;
 
@@ -188,14 +199,16 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
   const num_remaining_items = pool.length + num_junk;
   let p = 0;
 
+  const new_parents = parents.slice(0)
+
   // find possible branches
   // generate list of adjusted targets and their corresponding probabilities
   // after applying the flame score gained from a certain tier of this line
   // null/junk lines do not have different tiers so there will only be 
   // 1 branch with a probability of 100%
-  const new_targets = [];  // list of "tuples" (new_target_value, probability)
+  const new_targets = [];  // list of "tuples" (new_target_value, probability, tier)
   if (line == null) {
-    new_targets.push([target, 1]);
+    new_targets.push([target, 1, null]);
   }
   else {
     for (const tier in line.tiers) {
@@ -204,11 +217,12 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
       if (score_tier >= target) {
         p += p_tier;
         debug_data.lines_picked.push(line.name + " (finished), " + tier + ", " + score_tier + "/" + target);
-        debug_data.paths.push(parents);
+        debug_data.paths.push(new_parents.concat(`${line.name}, ${tier}`));
+        debug_data.success++;
       }
       else {
         // debug_data.lines_picked.push(line.name + " (partial), " + tier + ", " + score_tier + "/" + target);
-        new_targets.push([target - score_tier, p_tier]);
+        new_targets.push([target - score_tier, p_tier, tier]);
       }
     }
   }
@@ -219,13 +233,13 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
     return p;
   }
 
-  parents.push(line != null ? line.name : "null");
-
   // for each different possible target, prune the pool in case some lines
   // become junk (no possible way to sum up to target)
   for (const branch of new_targets) {
     const new_target = branch[0];
     const p_target = branch[1];
+    const tier = branch[2];
+    const line_label = `${line != null ? line.name : "null"}, ${tier}`
 
     const new_pool = prune_pool(pool, new_target, num_draws);
 
@@ -240,13 +254,13 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
     // recurse on all successor lines in pool
     for (let i = 0; i < new_pool.length; i++) {
       p += p_target * (1 / num_remaining_items) * get_p_recursive(
-        new_pool[i], new_target, removed_from_pool(new_pool, i), num_junk, num_draws - 1, debug_data, parents);
+        new_pool[i], new_target, new_pool.toSpliced(i, 1), num_junk, num_draws - 1, debug_data, new_parents.concat(line_label));
     }
 
     // recurse on all junk lines (lumped)
     if (num_junk > 0) {
       p += p_target * (num_junk / num_remaining_items) * get_p_recursive(
-        null, new_target, new_pool, num_junk - 1, num_draws - 1, debug_data, parents);
+        null, new_target, new_pool, num_junk - 1, num_draws - 1, debug_data, new_parents.concat(line_label));
     }
   }
 
@@ -339,10 +353,13 @@ function getProbability(class_type, level, flame_type, is_adv) {
   // ming: sums up across all successful paths of the "probability tree" (not sure about the term)
   let debug_data = {
     count: 0,
+    success: 0,
     lines_picked: [],
     paths: []
   };
-  const result = get_p_recursive(null, 165, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
+  const result = get_p_recursive(null, 169, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
+  const num_flames = 1 / result;
+  const stats = geoDistrQuantile(result);
 
   return result;
 }
