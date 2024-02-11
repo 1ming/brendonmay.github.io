@@ -93,6 +93,7 @@ const LINETYPE = {
   ALLSTAT: "All Stat %",
   COMBO_XENON_DOUBLE: "Xenon Main/Main",
   ATTACK: "Attack",
+  JUNK: "Junk",
 };
 
 const COMBO_LINES = [
@@ -128,7 +129,7 @@ const CLASS_LINES = {
   },
   [CLASS_TYPE.XENON]: {
     [LINETYPE.MAIN_STAT]: 3, [LINETYPE.COMBO_XENON_DOUBLE]: 3, [LINETYPE.COMBO_MAIN_JUNK]: 3,
-    [LINETYPE.XENON_ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
+    [LINETYPE.ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
   },
   [CLASS_TYPE.TEST]: {
     [LINETYPE.MAIN_STAT]: 1, [LINETYPE.ATTACK]: 1,
@@ -199,8 +200,6 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
   const num_remaining_items = pool.length + num_junk;
   let p = 0;
 
-  const new_parents = parents.slice(0)
-
   // find possible branches
   // generate list of adjusted targets and their corresponding probabilities
   // after applying the flame score gained from a certain tier of this line
@@ -208,21 +207,26 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
   // 1 branch with a probability of 100%
   const new_targets = [];  // list of "tuples" (new_target_value, probability, tier)
   if (line == null) {
-    new_targets.push([target, 1, null]);
+    new_targets.push([target, 1, "null"]);
+  }
+  else if (line.name === LINETYPE.JUNK) {
+    new_targets.push([target, 1, "[Junk]"]);
   }
   else {
     for (const tier in line.tiers) {
       const p_tier = line.tiers[tier].p;
       const score_tier = line.tiers[tier].score;
+      const line_label = `${line.name}${line.id > 0 ? line.id : ""}, ${tier}`;
+
       if (score_tier >= target) {
         p += p_tier;
-        debug_data.lines_picked.push(line.name + " (finished), " + tier + ", " + score_tier + "/" + target);
-        debug_data.paths.push(new_parents.concat(`${line.name}, ${tier}`));
+        // debug_data.lines_picked.push(line.name + " (finished), " + tier + ", " + score_tier + "/" + target);
+        debug_data.paths.push(parents.concat(line_label));
         debug_data.success++;
       }
       else {
         // debug_data.lines_picked.push(line.name + " (partial), " + tier + ", " + score_tier + "/" + target);
-        new_targets.push([target - score_tier, p_tier, tier]);
+        new_targets.push([target - score_tier, p_tier, line_label]);
       }
     }
   }
@@ -238,8 +242,7 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
   for (const branch of new_targets) {
     const new_target = branch[0];
     const p_target = branch[1];
-    const tier = branch[2];
-    const line_label = `${line != null ? line.name : "null"}, ${tier}`
+    const line_label = branch[2];
 
     const new_pool = prune_pool(pool, new_target, num_draws);
 
@@ -251,16 +254,22 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
     // any pruned lines become junk
     num_junk += pool.length - new_pool.length;
 
+    const new_parents = line == null ? parents.slice(0) : parents.concat(line_label)
+
+    if (line != null) {
+      // debug_data.sets = update_sets(debug_data.sets, new_parents);
+    }
+
     // recurse on all successor lines in pool
     for (let i = 0; i < new_pool.length; i++) {
       p += p_target * (1 / num_remaining_items) * get_p_recursive(
-        new_pool[i], new_target, new_pool.toSpliced(i, 1), num_junk, num_draws - 1, debug_data, new_parents.concat(line_label));
+        new_pool[i], new_target, new_pool.toSpliced(i, 1), num_junk, num_draws - 1, debug_data, new_parents);
     }
 
     // recurse on all junk lines (lumped)
     if (num_junk > 0) {
       p += p_target * (num_junk / num_remaining_items) * get_p_recursive(
-        null, new_target, new_pool, num_junk - 1, num_draws - 1, debug_data, new_parents.concat(line_label));
+        null, new_target, new_pool, num_junk - 1, num_draws - 1, debug_data, new_parents);
     }
   }
 
@@ -299,9 +308,10 @@ function get_tier_value(line_type, tier, level, is_adv, base_att) {
 // where each data item object is {p: probability, value: flame value, score: flame score}
 // flame value: the number shown on the equip
 // flame score: the flame score calculated using the value based on line type, class type, etc
-function getLineData(line_type, level, is_adv, flame_type, class_type) {
+function getLineData(line_type, id, level, is_adv, flame_type, class_type) {
   const line = {
     name: line_type,
+    id: id,
     f_max: 0,
     tiers: {},
   };
@@ -341,7 +351,7 @@ function getProbability(class_type, level, flame_type, is_adv) {
   const valid_lines = [];
   for (const key in CLASS_LINES[class_type]) {
     for (let i = 0; i < CLASS_LINES[class_type][key]; i++) {
-      valid_lines.push(getLineData(key, level, is_adv, flame_type, class_type));
+      valid_lines.push(getLineData(key, i, level, is_adv, flame_type, class_type));
     }
   }
 
@@ -355,9 +365,10 @@ function getProbability(class_type, level, flame_type, is_adv) {
     count: 0,
     success: 0,
     lines_picked: [],
-    paths: []
+    paths: [],
+    sets: {},
   };
-  const result = get_p_recursive(null, 169, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
+  const result = get_p_recursive(null, 200, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
   const num_flames = 1 / result;
   const stats = geoDistrQuantile(result);
 
