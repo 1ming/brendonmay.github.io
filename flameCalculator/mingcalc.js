@@ -132,7 +132,7 @@ const CLASS_LINES = {
     [LINETYPE.ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
   },
   [CLASS_TYPE.TEST]: {
-    [LINETYPE.MAIN_STAT]: 1, [LINETYPE.ATTACK]: 1,
+    [LINETYPE.ATTACK]: 1, [LINETYPE.COMBO_MAIN_JUNK]: 3, [LINETYPE.MAIN_STAT]: 1,
   }
 };
 
@@ -254,7 +254,7 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
     // any pruned lines become junk
     num_junk += pool.length - new_pool.length;
 
-    const new_parents = line == null ? parents.slice(0) : parents.concat(line_label)
+    const new_parents = line == null ? parents.slice(0) : parents.concat(line_label);
 
     if (line != null) {
       // debug_data.sets = update_sets(debug_data.sets, new_parents);
@@ -276,6 +276,183 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
   return p;
 
 }
+
+// get flame score of a line pointer by referencing lines_data
+function get_score(line_type, tier_id, lines_data) {
+  const tier_key = lines_data[line_type].tier_ids[tier_id];
+  return lines_data[line_type].tiers[tier_key].score;
+}
+
+// get the maximum total score of a set of line pointers that can
+// be achieved within the specified number of draws
+// expects line_pointers to be sorted from highest to lowest score
+function get_max_total_score(line_pointers, num_draws) {
+  let max_score = 0;
+  let total_draws = num_draws;
+  for (const lp of line_pointers) {
+    let line_count = 0;
+
+    // some lines can appear multiple times (lp.count)
+    while (line_count < lp.count) {
+      max_score += lp.score;
+      line_count++;
+      total_draws--;
+
+      if (total_draws === 0) {
+        return max_score;
+      }
+    }
+  }
+
+  return max_score;
+}
+
+
+// find all sets of lines and corresponding tiers whose flame scores sum >= target
+// line_pointers: list of lineptr objects which point to a line type, tier and have a count
+// where count = number of duplicates of that line remaining in the pool
+// the concept is that we have a 2D table of flame score values
+// where rows = line type, columns = tier
+// the lineptr objects "point" to a cell within a row (each row has only 1 lineptr at a time)
+// to avoid having duplicate rows when there are multiple instances of the same line type
+// i included a "count" attribute to be used as a multiplier when calculating p
+// each level of recursion is the act of "drawing" another line, so max levels is 4
+//
+// general algorithm:
+// initialize all lineptrs to the highest tier cell in their row
+// for each row, repeatedly check if the selected cell meets the target
+// if so, add it to the output and decrement the pointer (go down 1 tier)
+// if not, stop here and add this pointer to the list of "failed" pointers
+// if there are still draws remaining, then for each cell in the row whose
+// tier <= "failed" pointer, we recurse with updated input:
+// - target is reduced by the score of this cell
+// - line_pointers list is all the "failed" poitners that came after this one in the list
+// - line counts are updated if we are recursing on another line of the same type
+// - num_draws is reduced by 1
+// when we come back to the caller, it adds itself as the "parent" to each set in the output
+//
+// to avoid duplicate combinations or unnecessary work:
+// - each cell can only recurse on lines that come after it
+// - any time we reach the target, we don't create new subproblems from this cell
+// - return early if it's not possible to meet the target even with the best scoring cells
+function get_sets_recursive(line_pointers, target, num_draws, lines_data, debug_data) {
+  debug_data.function++;
+  const output = [];
+
+  // first check if this target is reachable at all with the best possible combination
+  // sort line pointers by flame score
+  line_pointers.sort((a, b) => (b.score - a.score));
+  const max_score = get_max_total_score(line_pointers, num_draws);
+  if (max_score < target) {
+    debug_data.failed++;
+    return [];
+  }
+
+  // add items that meet target into the output
+  // set new line pointers to the highest scoring item that does not meet the target for the next round
+  const failed_lps = [];
+  for (const lp of line_pointers) {
+    // traverse the tiers until we reach a score that is lower than the target
+    let new_tier_id = lp.tier_id;
+    while (new_tier_id >= 0) {
+      const score = get_score(lp.line_type, new_tier_id, lines_data);
+      if (score >= target) {
+        output.push([lineptr(lp.line_type, new_tier_id, score, lp.count)]);
+        debug_data.success++;
+        new_tier_id--;
+      }
+      else {
+        failed_lps.push(lineptr(lp.line_type, new_tier_id, score, lp.count));
+        break;
+      }
+    }
+  }
+
+  // base case: we can't draw any more lines after this so don't recurse
+  if (num_draws === 1) {
+    return output;
+  }
+
+  // recurse on each tier that is <= that of the failed line pointers
+  const n = failed_lps.length - 1;
+  for (let i = 0; i <= n; i++) {
+    const new_lps = [];
+    let tier_id = failed_lps[i].tier_id;
+
+    const new_count = failed_lps[i].count - 1;
+    if (new_count > 0) {
+      // add this entry to the pool again since we still have more of them
+      new_lps.push(lineptr(failed_lps[i].line_type, failed_lps[i].tier_id, failed_lps[i].score, new_count));
+    }
+
+    // add all line pointers that come after this one
+    for (let j = i + 1; j <= n; j++) {
+      new_lps.push(Object.assign({}, failed_lps[j]));
+    }
+
+    // kick off the next round on each remaining tier of this line
+    while (tier_id >= 0) {
+      const new_output = get_sets_recursive(new_lps, target - failed_lps[i].score, num_draws - 1, lines_data, debug_data);
+      for (const item of new_output) {
+        if (failed_lps[i].line_type === item[item.length - 1].line_type) {
+          // the previous element was the same line type so mark the count of this one (its parent) as 1
+          // to indicate it was "picked" in addition to any of the same remaining lines
+          output.push(item.concat(lineptr(failed_lps[i].line_type, failed_lps[i].tier_id, failed_lps[i].score, 1)));
+        }
+        else {
+          output.push(item.concat(failed_lps[i]));
+        }
+      }
+
+      tier_id--;
+    }
+  }
+  return output;
+}
+
+// generate a line pointer object
+// tier_id: used to index into the tier_ids field of a line object
+function lineptr(line_type, tier_id, score, count) {
+  const l = {
+    line_type: line_type,
+    tier_id: tier_id,
+    score: score,
+    count: count,
+  };
+  return l;
+}
+
+// generate all possible sets of lines that could meet the target within a certian number of draws
+// and the number of ways they can be formed
+function get_valid_combinations(class_type, level, flame_type, is_adv) {
+  // compile data about each relevant line. to be used for lookup later.
+  // generate initial line pointers for recursive function
+  // start at the highest tier_id (will be the highest value)
+  const lines_data = {};
+  const line_pointers = [];
+  for (const key in CLASS_LINES[class_type]) {
+    lines_data[key] = getLineData(key, level, is_adv, flame_type, class_type);
+    const tier_id = lines_data[key].tier_ids.length - 1;
+    const score = lines_data[key].tiers[lines_data[key].tier_ids[tier_id]].score;
+    line_pointers.push(lineptr(key, lines_data[key].tier_ids.length - 1, score, CLASS_LINES[class_type][key]));
+  }
+
+  let debug_data = {
+    function: 0,
+    failed: 0,
+    success: 0,
+
+  };
+
+  // recursively find all sets of lines/tiers whose scores sum >= target
+  const valid_sets = get_sets_recursive(line_pointers, 50, 4, lines_data, debug_data);
+  for (const s of valid_sets.slice(0, 20)) {
+    console.table(s);
+    const total_score = s.reduce((acc, item) => acc + item.score, 0);
+    console.log(`total: ${total_score}`);
+  }
+}
+
 
 // TODO ming: decide how to organize this later
 // calculate the flame value (not flame score) of a tier based on line type and level // this is the flame number we see on the item directly (e.g. +30 STR, +5% All Stat, +4 Weapon Attack, etc)
@@ -308,12 +485,12 @@ function get_tier_value(line_type, tier, level, is_adv, base_att) {
 // where each data item object is {p: probability, value: flame value, score: flame score}
 // flame value: the number shown on the equip
 // flame score: the flame score calculated using the value based on line type, class type, etc
-function getLineData(line_type, id, level, is_adv, flame_type, class_type) {
+function getLineData(line_type, level, is_adv, flame_type, class_type) {
   const line = {
     name: line_type,
-    id: id,
     f_max: 0,
     tiers: {},
+    tier_ids: []  // to be used as ordered list of keys for accessing specific tier info
   };
 
   // get the active tiers and corresponding probability based on the type of flame used
@@ -328,6 +505,7 @@ function getLineData(line_type, id, level, is_adv, flame_type, class_type) {
       continue;
     }
 
+    line.tier_ids.push(tier);
     const tier_value = get_tier_value(line_type, tier, level, is_adv, null);
     line.tiers[tier] = {
       p: p_tier,
@@ -381,4 +559,5 @@ const level = 150;
 const flame_type = "powerful";
 const is_adv = true;
 
-getProbability(class_type, level, flame_type, is_adv);
+// getProbability(class_type, level, flame_type, is_adv);
+get_valid_combinations(class_type, level, flame_type, is_adv);
