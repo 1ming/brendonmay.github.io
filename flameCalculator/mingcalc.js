@@ -150,17 +150,6 @@ function is_in_level_range(level_range_str, level_num) {
   return level_num >= low && level_num <= high;
 }
 
-// remove a line from the pool by index
-function removed_from_pool(pool, index) {
-  const new_pool = [];
-  for (const item in pool) {
-    if (item !== index) {
-      new_pool.push(pool[item]);
-    }
-  }
-  return new_pool;
-}
-
 // update pool such that lines that cannot possibly lead to success are removed
 // note: lines in the pool are ordered by f_max, descending
 // where f_max = the maximum possible flame score for a line to get (using its highest tier)
@@ -606,7 +595,8 @@ const class_type = CLASS_TYPE.NORMAL;
 const level = 150;
 const flame_type = "powerful";
 const is_adv = true;
-const target = 165
+// const target = 146  // first score that requires 4 specific lines to be drawn
+const target = 165  // first time where method 1 and 2 diverge (i think method 1 is wrong here?)
 
 getProbability(class_type, level, flame_type, is_adv, target);
 get_valid_combinations(class_type, level, flame_type, is_adv, target);
