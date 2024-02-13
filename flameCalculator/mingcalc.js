@@ -15,7 +15,10 @@ const TIER_PROBABILITIES = {
 };
 
 // these values will get altered by user input on the website
-var stat_equivalences = { "all_stat": 12, "secondary_stat": 0.066667, "attack": 3, "dmg": 15 };
+// var stat_equivalences = { "all_stat": 12, "secondary_stat": 0.066667, "attack": 3, "dmg": 15 };
+
+// for xenon
+var stat_equivalences = { "all_stat": 25, "secondary_stat": 0.066667, "attack": 6, "dmg": 15 };
 
 var stat_per_tier = {
   "120-139": 7,
@@ -100,6 +103,7 @@ const COMBO_LINES = [
   LINETYPE.COMBO_MAIN_SECOND,
   LINETYPE.COMBO_MAIN_JUNK,
   LINETYPE.COMBO_SECOND_JUNK,
+  LINETYPE.COMBO_XENON_DOUBLE,
 ];
 
 // map a function to calculate flame score for each line type
@@ -205,7 +209,7 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
     for (const tier in line.tiers) {
       const p_tier = line.tiers[tier].p;
       const score_tier = line.tiers[tier].score;
-      const line_label = `1/${num_remaining_items},${line.name}${line.id > 0 ? line.id : ""},${tier},p=${p_tier}`;
+      const line_label = `1/${num_remaining_items},${line.name}${line.id > 0 ? line.id : ""},${tier},p=${p_tier},s=${score_tier}`;
 
       if (score_tier >= target) {
         p += p_tier;
@@ -613,13 +617,13 @@ function getProbability(class_type, level, flame_type, is_adv, target) {
 }
 
 // for testing
-const class_type = CLASS_TYPE.NORMAL;
+const class_type = CLASS_TYPE.XENON;
 const level = 150;
 const flame_type = "powerful";
 const is_adv = true;
 // const target = 146  // first score that requires 4 specific lines to be drawn
 // const target = 165  // first time where method 1 and 2 diverge (i think method 1 is wrong here?)
-const target = 165
+const target = 100
 
 
 getProbability(class_type, level, flame_type, is_adv, target);
