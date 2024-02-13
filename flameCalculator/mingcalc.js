@@ -309,6 +309,8 @@ function get_max_total_score(line_pointers, num_draws) {
 }
 
 
+
+
 // find all sets of lines and corresponding tiers whose flame scores sum >= target
 // line_pointers: list of lineptr objects which point to a line type, tier and have a count
 // where count = number of duplicates of that line remaining in the pool
@@ -356,8 +358,8 @@ function get_sets_recursive(line_pointers, target, num_draws, lines_data, debug_
     // traverse the tiers until we reach a score that is lower than the target
     let new_tier_id = lp.tier_id;
     while (new_tier_id >= 0) {
-      const tier_key = lines_data[lp.line_type].tier_ids[new_tier_id]
-      const score = lines_data[lp.line_type].tiers[tier_key].score
+      const tier_key = lines_data[lp.line_type].tier_ids[new_tier_id];
+      const score = lines_data[lp.line_type].tiers[tier_key].score;
       if (score >= target) {
         output.push([lineptr(lp.line_type, new_tier_id, score, lp.count)]);
         debug_data.success++;
@@ -394,8 +396,8 @@ function get_sets_recursive(line_pointers, target, num_draws, lines_data, debug_
 
     // kick off the next round on each remaining tier of this line
     while (tier_id >= 0) {
-      const tier_key = lines_data[failed_lps[i].line_type].tier_ids[tier_id]
-      const tier_score = lines_data[failed_lps[i].line_type].tiers[tier_key].score
+      const tier_key = lines_data[failed_lps[i].line_type].tier_ids[tier_id];
+      const tier_score = lines_data[failed_lps[i].line_type].tiers[tier_key].score;
       const new_output = get_sets_recursive(new_lps, target - tier_score, num_draws - 1, lines_data, debug_data);
       for (const item of new_output) {
         if (failed_lps[i].line_type === item[item.length - 1].line_type) {
@@ -435,8 +437,12 @@ const NUM_WAYS = {
   4: 24,
 };
 
+
+// NOTE this only works when all combinations are exactly 4 line pointers
+// there are cases where we need fewer but we need to figure out how to
+// count those without double counting overlaps
 // get the probability for a certain combination to occur
-function get_p_set(line_pointers, lines_data) {
+function get_p_set(line_pointers, lines_data, num_draws) {
   let p_total = 1;
   let lines_in_pool = NUM_LINE_TYPES;
   const num_lines = line_pointers.length;
@@ -450,7 +456,7 @@ function get_p_set(line_pointers, lines_data) {
 
 // generate all possible sets of lines that could meet the target within a certian number of draws
 // and the number of ways they can be formed
-function get_valid_combinations(class_type, level, flame_type, is_adv) {
+function get_valid_combinations(class_type, level, flame_type, is_adv, target) {
   // compile data about each relevant line. to be used for lookup later.
   // generate initial line pointers for recursive function
   // start at the highest tier_id (will be the highest value)
@@ -470,22 +476,27 @@ function get_valid_combinations(class_type, level, flame_type, is_adv) {
 
   };
 
+  // set this based on flame advantage later
+  const num_draws = 4;
+
   // recursively find all sets of lines/tiers whose scores sum >= target
-  const valid_sets = get_sets_recursive(line_pointers, 1, 4, lines_data, debug_data);
+  const valid_sets = get_sets_recursive(line_pointers, target, num_draws, lines_data, debug_data);
   let total_p = 0;
-  for (const s of valid_sets) {
-    total_p += get_p_set(s, lines_data);
+  for (const s of  valid_sets) {
+    total_p += get_p_set(s, lines_data, num_draws);
   }
   const num_flames = 1 / total_p;
   const stats = geoDistrQuantile(total_p);
 
-  for (const s of valid_sets) {
-  // for (const s of valid_sets.slice(0, 20)) {
-    console.table(s);
-    const total_score = s.reduce((acc, item) => acc + item.score, 0);
-    console.log(`total: ${total_score}`);
-    console.log(`p: ${get_p_set(s, lines_data)}`);
-  }
+  console.log(`Method 2: p=${total_p}, flames=${num_flames}`);
+
+  // for (const s of valid_sets) {
+  // // for (const s of valid_sets.slice(0, 20)) {
+  //   console.table(s);
+  //   const total_score = s.reduce((acc, item) => acc + item.score, 0);
+  //   console.log(`total: ${total_score}`);
+  //   console.log(`p: ${get_p_set(s, lines_data)}`);
+  // }
 }
 
 
@@ -558,7 +569,7 @@ function getLineData(line_type, level, is_adv, flame_type, class_type) {
 }
 
 // calculate the probability of obtaining a target flame score
-function getProbability(class_type, level, flame_type, is_adv) {
+function getProbability(class_type, level, flame_type, is_adv, target) {
   // generate pool of valid line objects containing attributes such as:
   // tiers, values, probabilities which are based on flame type used and level
   const valid_lines = [];
@@ -581,9 +592,11 @@ function getProbability(class_type, level, flame_type, is_adv) {
     paths: [],
     sets: {},
   };
-  const result = get_p_recursive(null, 1, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
+  const result = get_p_recursive(null, target, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
   const num_flames = 1 / result;
   const stats = geoDistrQuantile(result);
+
+  console.log(`Method 1: p=${result}, flames=${num_flames}`);
 
   return result;
 }
@@ -593,6 +606,7 @@ const class_type = CLASS_TYPE.NORMAL;
 const level = 150;
 const flame_type = "powerful";
 const is_adv = true;
+const target = 165
 
-getProbability(class_type, level, flame_type, is_adv);
-get_valid_combinations(class_type, level, flame_type, is_adv);
+getProbability(class_type, level, flame_type, is_adv, target);
+get_valid_combinations(class_type, level, flame_type, is_adv, target);
