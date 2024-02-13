@@ -205,7 +205,7 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
     for (const tier in line.tiers) {
       const p_tier = line.tiers[tier].p;
       const score_tier = line.tiers[tier].score;
-      const line_label = `${line.name}${line.id > 0 ? line.id : ""}, ${tier}`;
+      const line_label = `1/${num_remaining_items},${line.name}${line.id > 0 ? line.id : ""},${tier},p=${p_tier}`;
 
       if (score_tier >= target) {
         p += p_tier;
@@ -241,7 +241,7 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
     }
 
     // any pruned lines become junk
-    num_junk += pool.length - new_pool.length;
+    const new_num_junk = num_junk + pool.length - new_pool.length;
 
     const new_parents = line == null ? parents.slice(0) : parents.concat(line_label);
 
@@ -251,14 +251,15 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
 
     // recurse on all successor lines in pool
     for (let i = 0; i < new_pool.length; i++) {
+      const new_pool_i = new_pool.toSpliced(i, 1)
       p += p_target * (1 / num_remaining_items) * get_p_recursive(
-        new_pool[i], new_target, new_pool.toSpliced(i, 1), num_junk, num_draws - 1, debug_data, new_parents);
+        new_pool[i], new_target, new_pool_i, new_num_junk, num_draws - 1, debug_data, new_parents);
     }
 
     // recurse on all junk lines (lumped)
-    if (num_junk > 0) {
-      p += p_target * (num_junk / num_remaining_items) * get_p_recursive(
-        null, new_target, new_pool, num_junk - 1, num_draws - 1, debug_data, new_parents);
+    if (new_num_junk > 0) {
+      p += p_target * (new_num_junk / num_remaining_items) * get_p_recursive(
+        null, new_target, new_pool, new_num_junk - 1, num_draws - 1, debug_data, new_parents);
     }
   }
 
@@ -557,6 +558,26 @@ function getLineData(line_type, level, is_adv, flame_type, class_type) {
   return line;
 }
 
+
+// debug paths
+function debug_paths(paths){
+  const results = {}
+
+  for (const path of paths){
+    let new_path = Object.assign([], path)
+    new_path.sort()
+    const path_string = new_path.join(" - ")
+
+    if (!(path_string in results)){
+      results[path_string] = 0
+    }
+    results[path_string]++
+  }
+
+  return results
+}
+
+
 // calculate the probability of obtaining a target flame score
 function getProbability(class_type, level, flame_type, is_adv, target) {
   // generate pool of valid line objects containing attributes such as:
@@ -584,6 +605,7 @@ function getProbability(class_type, level, flame_type, is_adv, target) {
   const result = get_p_recursive(null, target, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
   const num_flames = 1 / result;
   const stats = geoDistrQuantile(result);
+  const paths = debug_paths(debug_data.paths)
 
   console.log(`Method 1: p=${result}, flames=${num_flames}`);
 
@@ -596,7 +618,9 @@ const level = 150;
 const flame_type = "powerful";
 const is_adv = true;
 // const target = 146  // first score that requires 4 specific lines to be drawn
-const target = 165  // first time where method 1 and 2 diverge (i think method 1 is wrong here?)
+// const target = 165  // first time where method 1 and 2 diverge (i think method 1 is wrong here?)
+const target = 165
+
 
 getProbability(class_type, level, flame_type, is_adv, target);
 get_valid_combinations(class_type, level, flame_type, is_adv, target);
