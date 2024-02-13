@@ -184,13 +184,25 @@ function prune_pool(current_pool, target, num_draws) {
 
 }
 
+function line_counter(line, count) {
+  return {
+    line: line,
+    count: count,
+  };
+}
+
+function get_num_lines(pool) {
+  const num_lines = pool.reduce((acc, item) => acc + item.count, 0);
+  return num_lines;
+}
+
 
 // calculate the probability that the target will be met within num_draws total lines
 // num_draws: total number of lines we can "draw"/pick out of the pool, once
 // pool: list of valid lines that have not yet been drawn
 function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, parents) {
   debug_data.count++;
-  const num_remaining_items = pool.length + num_junk;
+  const num_remaining_items = get_num_lines(pool) + num_junk;
   let p = 0;
 
   // find possible branches
@@ -237,33 +249,35 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
     const p_target = branch[1];
     const line_label = branch[2];
 
-    const new_pool = prune_pool(pool, new_target, num_draws);
-
-    if (new_pool.length === 0) {
-      // no combination of subsequent draws could result in success for this target
-      continue;
-    }
-
-    // any pruned lines become junk
-    const new_num_junk = num_junk + pool.length - new_pool.length;
-
     const new_parents = line == null ? parents.slice(0) : parents.concat(line_label);
 
-    if (line != null) {
-      // debug_data.sets = update_sets(debug_data.sets, new_parents);
-    }
-
     // recurse on all successor lines in pool
-    for (let i = 0; i < new_pool.length; i++) {
-      const new_pool_i = new_pool.toSpliced(i, 1)
-      p += p_target * (1 / num_remaining_items) * get_p_recursive(
-        new_pool[i], new_target, new_pool_i, new_num_junk, num_draws - 1, debug_data, new_parents);
+    // for each successor, decrement its count from the pool when recursing on it
+    // to indicate that it was "selected"
+    for (const selection of pool) {
+      const new_pool = [];
+
+      // only add the selected item to the pool if there are any left
+      const new_count = selection.count - 1;
+      if (new_count > 0) {
+        new_pool.push(line_counter(selection.line, new_count));
+      }
+
+      // add the other items to the pool
+      for (const other_line of pool) {
+        if (other_line.line !== selection.line) {
+          new_pool.push(line_counter(other_line.line, other_line.count));
+        }
+      }
+
+      p += p_target * (selection.count / num_remaining_items) * get_p_recursive(
+        selection.line, new_target, new_pool, num_junk, num_draws - 1, debug_data, new_parents);
     }
 
     // recurse on all junk lines (lumped)
-    if (new_num_junk > 0) {
-      p += p_target * (new_num_junk / num_remaining_items) * get_p_recursive(
-        null, new_target, new_pool, new_num_junk - 1, num_draws - 1, debug_data, new_parents);
+    if (num_junk > 0) {
+      p += p_target * (num_junk / num_remaining_items) * get_p_recursive(
+        null, new_target, pool, num_junk - 1, num_draws - 1, debug_data, new_parents);
     }
   }
 
@@ -476,7 +490,7 @@ function get_valid_combinations(class_type, level, flame_type, is_adv, target) {
   // recursively find all sets of lines/tiers whose scores sum >= target
   const valid_sets = get_sets_recursive(line_pointers, target, num_draws, lines_data, debug_data);
   let total_p = 0;
-  for (const s of  valid_sets) {
+  for (const s of valid_sets) {
     total_p += get_p_set(s, lines_data, num_draws);
   }
   const num_flames = 1 / total_p;
@@ -564,21 +578,21 @@ function getLineData(line_type, level, is_adv, flame_type, class_type) {
 
 
 // debug paths
-function debug_paths(paths){
-  const results = {}
+function debug_paths(paths) {
+  const results = {};
 
-  for (const path of paths){
-    let new_path = Object.assign([], path)
-    new_path.sort()
-    const path_string = new_path.join(" - ")
+  for (const path of paths) {
+    let new_path = Object.assign([], path);
+    new_path.sort();
+    const path_string = new_path.join(" - ");
 
-    if (!(path_string in results)){
-      results[path_string] = 0
+    if (!(path_string in results)) {
+      results[path_string] = 0;
     }
-    results[path_string]++
+    results[path_string]++;
   }
 
-  return results
+  return results;
 }
 
 
@@ -588,14 +602,12 @@ function getProbability(class_type, level, flame_type, is_adv, target) {
   // tiers, values, probabilities which are based on flame type used and level
   const valid_lines = [];
   for (const key in CLASS_LINES[class_type]) {
-    for (let i = 0; i < CLASS_LINES[class_type][key]; i++) {
-      valid_lines.push(getLineData(key, level, is_adv, flame_type, class_type));
-    }
+    valid_lines.push(line_counter(getLineData(key, level, is_adv, flame_type, class_type), CLASS_LINES[class_type][key]));
   }
 
   // sort lines in decreasing order of f_max (maximum possible flame score)
   // this is used to make pruning the probability tree easier
-  valid_lines.sort((a, b) => (b.f_max - a.f_max));
+  valid_lines.sort((a, b) => (b.line.f_max - a.line.f_max));
 
   // compute the probability of obtaining the target flame score
   // ming: sums up across all successful paths of the "probability tree" (not sure about the term)
@@ -606,10 +618,10 @@ function getProbability(class_type, level, flame_type, is_adv, target) {
     paths: [],
     sets: {},
   };
-  const result = get_p_recursive(null, target, valid_lines, NUM_LINE_TYPES - valid_lines.length, 4, debug_data, []);
+  const result = get_p_recursive(null, target, valid_lines, NUM_LINE_TYPES - get_num_lines(valid_lines), 4, debug_data, []);
   const num_flames = 1 / result;
   const stats = geoDistrQuantile(result);
-  const paths = debug_paths(debug_data.paths)
+  const paths = debug_paths(debug_data.paths);
 
   console.log(`Method 1: p=${result}, flames=${num_flames}`);
 
@@ -623,7 +635,7 @@ const flame_type = "powerful";
 const is_adv = true;
 // const target = 146  // first score that requires 4 specific lines to be drawn
 // const target = 165  // first time where method 1 and 2 diverge (i think method 1 is wrong here?)
-const target = 100
+const target = 230
 
 
 getProbability(class_type, level, flame_type, is_adv, target);
