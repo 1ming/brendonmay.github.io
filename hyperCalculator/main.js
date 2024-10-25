@@ -1208,7 +1208,7 @@ function getPrimaryAndSecondaryStatType(maple_class) {
             'primaryStatType': 'INT',
             'secondaryStatType': 'LUK'
         },
-        'Beast Tamer': {
+        'Lynn': {
             'primaryStatType': 'INT',
             'secondaryStatType': 'LUK'
         },
@@ -1402,6 +1402,7 @@ function getMultiplier(weapon_type, maple_class) {
         'knuckle': 1.70, //good
         'long_sword': 1.34, //good
         'lucent_gauntlet': 1.20, //good
+        'memorial_staff': 1.34, //good
         'one_hand_axe': 1.20, //good
         'one_hand_axe_hero': 1.30, //good
         'one_hand_blunt': 1.20, //good
@@ -1409,7 +1410,6 @@ function getMultiplier(weapon_type, maple_class) {
         'polearm': 1.49, //good
         'psy_limiter': 1.20, //good
         'ritual_fan': 1.30, //good
-        'scepter': 1.34, //good
         'shining_rod': 1.20, //good
         'soul_shooter': 1.70, //good
         'spear': 1.49, //good
@@ -1451,7 +1451,7 @@ function getTrueHitDamage(boss_percent, attack_percent, damage_percent, critical
 }
 
 function getBossDefMultiplier(ied_percent) {
-    var bossDefMultipler = 1 - (300 / 100) * (1 - (ied_percent / 100))
+    var bossDefMultipler = 1 - (380 / 100) * (1 - (ied_percent / 100))
     return bossDefMultipler
 }
 
@@ -2108,11 +2108,11 @@ function getClassData(maple_class) {
             'critDmg': 0
         },
 
-        'Beast Tamer': {
-            'attPercent': 15,
+        'Lynn': {
+            'attPercent': 4,
             'iedPercent': [20],
-            'dmgPercent': 20,
-            'bossPercent': 20,
+            'dmgPercent': 0,
+            'bossPercent': 0,
             'critDmg': 0
         },
 
@@ -2261,11 +2261,11 @@ function getClassData(maple_class) {
         },
 
         'Kain': {
-            'attPercent': 34,
-            'iedPercent': [10, 30],
-            'dmgPercent': 10,
-            'bossPercent': 10,
-            'critDmg': 40
+            'attPercent': 4,
+            'iedPercent': [20],
+            'dmgPercent': 0,
+            'bossPercent': 0,
+            'critDmg': 0
         },
 
         'Kaiser': {
@@ -3150,172 +3150,180 @@ document.addEventListener("DOMContentLoaded", function () {
 
     });
 
-    document.getElementById('result').addEventListener("DOMSubtreeModified", function () {
-        var isFinished = document.getElementById('result').innerHTML == "Finished";
+    // Select the target node
+    var targetNode = document.getElementById('result');
 
-        if (isFinished) {
-            //console.log("old score: " + currentScore);
-            console.log("optimal score: " + bestScore[0]);
-            console.log(bestResult);
+    // Create an observer instance linked to the callback function
+    var observer = new MutationObserver(function (mutationsList, observer) {
+        for (var mutation of mutationsList) {
+            if (mutation.type === 'childList' || mutation.type === 'subtree') {
+                var isFinished = targetNode.innerHTML == "Finished";
+                if (isFinished) {
+                    //console.log("old score: " + currentScore);
+                    console.log("optimal score: " + bestScore[0]);
+                    console.log(bestResult);
 
-            //update optimized hyper table
-            document.getElementById('nattPowerSelect').value = bestResult.att;
-            nupdatePoints(document.getElementById('nattPowerSelect'));
+                    //update optimized hyper table
+                    document.getElementById('nattPowerSelect').value = bestResult.att;
+                    nupdatePoints(document.getElementById('nattPowerSelect'));
 
-            document.getElementById('nbDamageSelect').value = bestResult.boss;
-            nupdatePoints(document.getElementById('nbDamageSelect'));
+                    document.getElementById('nbDamageSelect').value = bestResult.boss;
+                    nupdatePoints(document.getElementById('nbDamageSelect'));
 
-            document.getElementById('nmobDamageSelect').value = bestResult.mob;
-            nupdatePoints(document.getElementById('nmobDamageSelect'));
+                    document.getElementById('nmobDamageSelect').value = bestResult.mob;
+                    nupdatePoints(document.getElementById('nmobDamageSelect'));
 
-            document.getElementById('ncritDmgSelect').value = bestResult.cdmg;
-            nupdatePoints(document.getElementById('ncritDmgSelect'));
+                    document.getElementById('ncritDmgSelect').value = bestResult.cdmg;
+                    nupdatePoints(document.getElementById('ncritDmgSelect'));
 
-            document.getElementById('ndamageSelect').value = bestResult.dmg;
-            nupdatePoints(document.getElementById('ndamageSelect'));
+                    document.getElementById('ndamageSelect').value = bestResult.dmg;
+                    nupdatePoints(document.getElementById('ndamageSelect'));
 
-            document.getElementById('nignDefSelect').value = bestResult.ied;
-            nupdatePoints(document.getElementById('nignDefSelect'));
+                    document.getElementById('nignDefSelect').value = bestResult.ied;
+                    nupdatePoints(document.getElementById('nignDefSelect'));
 
-            var maple_class = document.getElementById('class').value;
+                    var maple_class = document.getElementById('class').value;
 
-            if (maple_class == "Xenon") {
-                document.getElementById('nstrSelect').value = bestResult.primary1;
-                nupdatePoints(document.getElementById('nstrSelect'));
+                    if (maple_class == "Xenon") {
+                        document.getElementById('nstrSelect').value = bestResult.primary1;
+                        nupdatePoints(document.getElementById('nstrSelect'));
 
-                document.getElementById('ndexSelect').value = bestResult.primary2;
-                nupdatePoints(document.getElementById('ndexSelect'));
+                        document.getElementById('ndexSelect').value = bestResult.primary2;
+                        nupdatePoints(document.getElementById('ndexSelect'));
 
-                document.getElementById('nlukSelect').value = bestResult.primary3;
-                nupdatePoints(document.getElementById('nlukSelect'));
-            }
-            else if (maple_class == "Cadena" || maple_class == "Dual Blade" || maple_class == "Shadower") {
-                document.getElementById('nlukSelect').value = bestResult.primary;
-                nupdatePoints(document.getElementById('nlukSelect'));
+                        document.getElementById('nlukSelect').value = bestResult.primary3;
+                        nupdatePoints(document.getElementById('nlukSelect'));
+                    }
+                    else if (maple_class == "Cadena" || maple_class == "Dual Blade" || maple_class == "Shadower") {
+                        document.getElementById('nlukSelect').value = bestResult.primary;
+                        nupdatePoints(document.getElementById('nlukSelect'));
 
-                document.getElementById('nstrSelect').value = bestResult.secondary1;
-                nupdatePoints(document.getElementById('nstrSelect'));
+                        document.getElementById('nstrSelect').value = bestResult.secondary1;
+                        nupdatePoints(document.getElementById('nstrSelect'));
 
-                document.getElementById('ndexSelect').value = bestResult.secondary2;
-                nupdatePoints(document.getElementById('ndexSelect'));
-            }
-            else if (maple_class == "Demon Avenger") {
-                document.getElementById('nhpSelect').value = bestResult.hp;
-                nupdatePoints(document.getElementById('nhpSelect'));
+                        document.getElementById('ndexSelect').value = bestResult.secondary2;
+                        nupdatePoints(document.getElementById('ndexSelect'));
+                    }
+                    else if (maple_class == "Demon Avenger") {
+                        document.getElementById('nhpSelect').value = bestResult.hp;
+                        nupdatePoints(document.getElementById('nhpSelect'));
 
-                document.getElementById('nstrSelect').value = bestResult.str;
-                nupdatePoints(document.getElementById('nstrSelect'));
-            }
-            else if (maple_class == "Kanna") {
-                document.getElementById('nhpSelect').value = bestResult.hp;
-                nupdatePoints(document.getElementById('nhpSelect'));
+                        document.getElementById('nstrSelect').value = bestResult.str;
+                        nupdatePoints(document.getElementById('nstrSelect'));
+                    }
+                    else if (maple_class == "Kanna") {
+                        document.getElementById('nhpSelect').value = bestResult.hp;
+                        nupdatePoints(document.getElementById('nhpSelect'));
 
-                document.getElementById('nlukSelect').value = bestResult.luk;
-                nupdatePoints(document.getElementById('nlukSelect'));
+                        document.getElementById('nlukSelect').value = bestResult.luk;
+                        nupdatePoints(document.getElementById('nlukSelect'));
 
-                document.getElementById('nintSelect').value = bestResult.int;
-                nupdatePoints(document.getElementById('nintSelect'));
-            }
-            else {
-                var stat_types = getPrimaryAndSecondaryStatType(maple_class);
-                var primary_stat_type = stat_types.primaryStatType;
-                var secondary_stat_type = stat_types.secondaryStatType;
+                        document.getElementById('nintSelect').value = bestResult.int;
+                        nupdatePoints(document.getElementById('nintSelect'));
+                    }
+                    else {
+                        var stat_types = getPrimaryAndSecondaryStatType(maple_class);
+                        var primary_stat_type = stat_types.primaryStatType;
+                        var secondary_stat_type = stat_types.secondaryStatType;
 
-                if (primary_stat_type == "LUK") {
-                    document.getElementById('nlukSelect').value = bestResult.primary;
-                    nupdatePoints(document.getElementById('nlukSelect'));
-                }
-                if (primary_stat_type == "DEX") {
-                    document.getElementById('ndexSelect').value = bestResult.primary;
-                    nupdatePoints(document.getElementById('ndexSelect'));
-                }
-                if (primary_stat_type == "STR") {
-                    document.getElementById('nstrSelect').value = bestResult.primary;
-                    nupdatePoints(document.getElementById('nstrSelect'));
-                }
-                if (primary_stat_type == "INT") {
-                    document.getElementById('nintSelect').value = bestResult.primary;
-                    nupdatePoints(document.getElementById('nintSelect'));
-                }
-                if (secondary_stat_type == "LUK") {
-                    document.getElementById('nlukSelect').value = bestResult.secondary;
-                    nupdatePoints(document.getElementById('nlukSelect'));
-                }
-                if (secondary_stat_type == "DEX") {
-                    document.getElementById('ndexSelect').value = bestResult.secondary;
-                    nupdatePoints(document.getElementById('ndexSelect'));
-                }
-                if (secondary_stat_type == "STR") {
-                    document.getElementById('nstrSelect').value = bestResult.secondary;
-                    nupdatePoints(document.getElementById('nstrSelect'));
-                }
-                if (secondary_stat_type == "INT") {
-                    document.getElementById('nintSelect').value = bestResult.secondary;
-                    nupdatePoints(document.getElementById('nintSelect'));
-                }
-            }
+                        if (primary_stat_type == "LUK") {
+                            document.getElementById('nlukSelect').value = bestResult.primary;
+                            nupdatePoints(document.getElementById('nlukSelect'));
+                        }
+                        if (primary_stat_type == "DEX") {
+                            document.getElementById('ndexSelect').value = bestResult.primary;
+                            nupdatePoints(document.getElementById('ndexSelect'));
+                        }
+                        if (primary_stat_type == "STR") {
+                            document.getElementById('nstrSelect').value = bestResult.primary;
+                            nupdatePoints(document.getElementById('nstrSelect'));
+                        }
+                        if (primary_stat_type == "INT") {
+                            document.getElementById('nintSelect').value = bestResult.primary;
+                            nupdatePoints(document.getElementById('nintSelect'));
+                        }
+                        if (secondary_stat_type == "LUK") {
+                            document.getElementById('nlukSelect').value = bestResult.secondary;
+                            nupdatePoints(document.getElementById('nlukSelect'));
+                        }
+                        if (secondary_stat_type == "DEX") {
+                            document.getElementById('ndexSelect').value = bestResult.secondary;
+                            nupdatePoints(document.getElementById('ndexSelect'));
+                        }
+                        if (secondary_stat_type == "STR") {
+                            document.getElementById('nstrSelect').value = bestResult.secondary;
+                            nupdatePoints(document.getElementById('nstrSelect'));
+                        }
+                        if (secondary_stat_type == "INT") {
+                            document.getElementById('nintSelect').value = bestResult.secondary;
+                            nupdatePoints(document.getElementById('nintSelect'));
+                        }
+                    }
 
-            var mobbing = document.getElementById('mobbing').checked;
-            //determine damage increase
-            var dmgRatio = bestScore[0] / currentScore;
-            var dmgIncrease = ((dmgRatio - 1) * 100).toFixed(2);
-            var maple_class = document.getElementById('class').value;
+                    var mobbing = document.getElementById('mobbing').checked;
+                    //determine damage increase
+                    var dmgRatio = bestScore[0] / currentScore;
+                    var dmgIncrease = ((dmgRatio - 1) * 100).toFixed(2);
+                    var maple_class = document.getElementById('class').value;
 
-            //console.log(dmgRatio);
-            //console.log(dmgIncrease);
+                    //console.log(dmgRatio);
+                    //console.log(dmgIncrease);
 
-            if (dmgRatio == 1 || dmgIncrease == '0.00') {
-                document.getElementById('resultSection').hidden = false;
-                document.getElementById('result').innerHTML = `
+                    if (dmgRatio == 1 || dmgIncrease == '0.00') {
+                        document.getElementById('resultSection').hidden = false;
+                        document.getElementById('result').innerHTML = `
                     You already obtain a fully optimized configuration!
                 `;
-                window.scrollTo(0, document.body.scrollHeight);
-            }
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
 
-            else if (dmgRatio > 1) {
-                var output_increase = ((dmgRatio - 1) * 100).toFixed(2);
-                document.getElementById('resultSection').hidden = false;
-                if (currentScore == 0) {
-                    if (mobbing) {
-                        document.getElementById('result').innerHTML = `
+                    else if (dmgRatio > 1) {
+                        var output_increase = ((dmgRatio - 1) * 100).toFixed(2);
+                        document.getElementById('resultSection').hidden = false;
+                        if (currentScore == 0) {
+                            if (mobbing) {
+                                document.getElementById('result').innerHTML = `
                         Hit Damage on Mobs will <span style='color:green !important'><strong>increase</strong></span> significantly! Refer to the above table for your optimal setup.
                     `;
-                    }
-                    else {
-                        document.getElementById('result').innerHTML = `
+                            }
+                            else {
+                                document.getElementById('result').innerHTML = `
                         Hit Damage on Bosses will <span style='color:green !important'><strong>increase</strong></span> significantly! Refer to the above table for your optimal setup.
                     `;
-                    }
-                }
-                else {
-                    if (mobbing) {
-                        document.getElementById('result').innerHTML = `
+                            }
+                        }
+                        else {
+                            if (mobbing) {
+                                document.getElementById('result').innerHTML = `
                         Hit Damage on Mobs will <span style='color:green !important'><strong>increase</strong></span> by ${output_increase}%.
                     `;
-                    }
-                    else {
-                        document.getElementById('result').innerHTML = `
+                            }
+                            else {
+                                document.getElementById('result').innerHTML = `
                         Hit Damage on Bosses will <span style='color:green !important'><strong>increase</strong></span> by ${output_increase}%.
                     `;
+                            }
+
+                        }
+                        window.scrollTo(0, document.body.scrollHeight);
                     }
 
-                }
-                window.scrollTo(0, document.body.scrollHeight);
-            }
-
-            else if (dmgRatio < 1) {
-                var output_decrease = ((1 - dmgRatio) * 100).toFixed(2);
-                // document.getElementById('resultSection').hidden = false;
-                document.getElementById('result').innerHTML = `
+                    else if (dmgRatio < 1) {
+                        var output_decrease = ((1 - dmgRatio) * 100).toFixed(2);
+                        // document.getElementById('resultSection').hidden = false;
+                        document.getElementById('result').innerHTML = `
                     Optimization Failed! You will lose ${output_decrease}%. Please contact developer. 
                 `;
 
-                window.scrollTo(0, document.body.scrollHeight);
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+                }
             }
-
-
         }
     });
+
+    // Start observing the target node for configured mutations
+    observer.observe(targetNode, { attributes: true, childList: true, subtree: true });
 
     document.getElementById("calculateButton").addEventListener("click", function () {
         optimizeWSE();

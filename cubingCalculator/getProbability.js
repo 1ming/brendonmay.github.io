@@ -22,6 +22,7 @@ const emptyInputObject = {
     lineAutoSteal: 0,
     lineAttOrBoss: 0,
     lineAttOrBossOrIed: 0,
+    lineBossOrIed: 0,
 }
 
 // labels for categories used in json data reference and calculations
@@ -77,6 +78,7 @@ const INPUT_CATEGORY_MAP = {
     lineAutoSteal: [CATEGORY.AUTOSTEAL_PERC],
     lineAttOrBoss: [CATEGORY.ATT_PERC, CATEGORY.BOSSDMG_PERC],
     lineAttOrBossOrIed: [CATEGORY.ATT_PERC, CATEGORY.BOSSDMG_PERC, CATEGORY.IED_PERC],
+    lineBossOrIed: [CATEGORY.BOSSDMG_PERC, CATEGORY.IED_PERC],
 }
 
 // type of calculation can be total number of lines or a value sum (e.g. stat %, seconds of CDR)
@@ -112,6 +114,8 @@ const OUTCOME_MATCH_FUNCTION_MAP = {
         + _calculateTotal(outcome, CATEGORY.BOSSDMG_PERC)) >= requiredVal,
     lineAttOrBossOrIed: (outcome, requiredVal) => (_calculateTotal(outcome, CATEGORY.ATT_PERC)
         + _calculateTotal(outcome, CATEGORY.BOSSDMG_PERC)
+        + _calculateTotal(outcome, CATEGORY.IED_PERC)) >= requiredVal,
+    lineBossOrIed: (outcome, requiredVal) => (+ _calculateTotal(outcome, CATEGORY.BOSSDMG_PERC)
         + _calculateTotal(outcome, CATEGORY.IED_PERC)) >= requiredVal
 }
 
@@ -221,9 +225,9 @@ function satisfiesInput(outcome, probabilityInput) {
 const MAX_CATEGORY_COUNT = {
     [CATEGORY.DECENT_SKILL]: 1,
     [CATEGORY.INVINCIBLE_TIME]: 1,
-    [CATEGORY.IED_PERC]: 2,
-    [CATEGORY.BOSSDMG_PERC]: 2,
-    [CATEGORY.DROP_PERC]: 2,
+    [CATEGORY.IED_PERC]: 3,
+    [CATEGORY.BOSSDMG_PERC]: 3,
+    [CATEGORY.DROP_PERC]: 3,
     [CATEGORY.IGNOREDMG_PERC]: 2,
     [CATEGORY.INVINCIBLE_PERC]: 2,
 }

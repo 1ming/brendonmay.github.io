@@ -37,7 +37,7 @@ export default {
     // Lvl: 200
     warrior200: 'Lvl 200 Warrior',
     archer200: 'Lvl 200 Archer',
-    thiefLab200: 'Lvl 200 Thief/Lab',
+    thiefLab200: 'Lvl 200 Thief/Lab/Xenon',
     mage200: 'Lvl 200 Mage',
     pirate200: 'Lvl 200 Pirate',
 
@@ -46,11 +46,11 @@ export default {
     archer250: 'Lvl 250 Archer',
     thief250: 'Lvl 250 Thief',
     mage250: 'Lvl 250 Mage',
-    pirate250: 'Lvl 250 Pirate',
+    pirate250: 'Lvl 250 Pirate/Abyssal',
     xenon250: 'Lvl 250 Xenon',
 
     /** special jobs */
-    enhancedLab200: 'Lvl 200 Enhanced Lab',
-    enhancedLab250: 'Lvl 250 Enhanced Lab',
-    lab250: 'Lvl 250 Lab'
+    enhancedLab200: 'Lvl 200 E-Lab',
+    enhancedLab250: 'Lvl 250 E-Lab',
+    lab250: 'Lvl 250 Lab',
 }

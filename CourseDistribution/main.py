@@ -150,11 +150,37 @@ def load_data(file_like_object):
     # Create a dictionary to track the number of occurrences of each course name for each teacher
     course_name_count = {(i, course_name): lpSum([teacher_vars[i][j] for j in courses if course_names[j] == course_name]) for i in teachers for course_name in set(course_names)}
 
+    # Create a dictionary to track the number of occurrences of each course prefix for each teacher
+    course_prefix_count = {(i, course_name[:5]): lpSum([teacher_vars[i][j] for j in courses if course_names[j][:5] == course_name[:5]]) for i in teachers for course_name in set(course_names)}
+
     # No teacher can be given multiple courses with the same name
     for i in teachers:
         for course_name in set(course_names):
+            # Ensure no more than two courses with the same name are assigned to the teacher
             prob += course_name_count[(i, course_name)] <= 2, f"No_Three_Same_Courses_{i}_{course_name}"
 
+    # No teacher can be given multiple courses with the same prefix
+    for i in teachers:
+        for course_prefix in set(course_name[:5] for course_name in course_names):
+            prob += course_prefix_count[(i, course_prefix)] <= 2, f"No_Three_Same_Prefix_Courses_{i}_{course_prefix}"
+
+    # Add constraints to ensure no teacher receives a score lower than specified thresholds
+    for i in teachers:
+        num_teacher_courses = num_courses_per_teacher[i]
+        total_teacher_score = lpSum([teacher_preferences[i][j] * teacher_vars[i][j] for j in courses])
+
+        if num_teacher_courses == 3:
+            min_acceptable_score = 11
+        elif num_teacher_courses == 2:
+            min_acceptable_score = 6
+        elif num_teacher_courses == 1:
+            min_acceptable_score = 3
+        else:
+            # Adjust this condition as needed based on your requirements
+            min_acceptable_score = 0
+
+        prob += total_teacher_score >= min_acceptable_score, f"Min_Score_for_Teacher_{i}"
+        
     # Teachers are excluded from particular courses
     for i in teachers:
         for j in courses:
@@ -291,8 +317,8 @@ def index():
         </style>
     </head>
     <body>
-        <h1>Teacher Course Distributor V4</h1>
-        <h2>Last Updated: 12/14/2023</h2>
+        <h1>Teacher Course Distributor V5</h1>
+        <h2>Last Updated: 05/10/2024</h2>
         <p>This program is designed to consider all teacher preferences for desired courses and will automatically construct a schedule which maximizes overall teacher preference. With the power of mathematics, we can create a schedule that satisfies all department members as much as possible.</p>
         <p>Please download this <a href="https://docs.google.com/forms/d/1KDXckJ5_bVsctTY4rKxEKv4ZI01ZtPOx4xfo-_FikcE/copy" target="_blank">Google Form</a> and have all of your department members fill it out.</p>
         <p>Once all members have completed the form, download the spreadsheet as a .CSV file and upload it below:</p>
