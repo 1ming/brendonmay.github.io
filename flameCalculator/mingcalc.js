@@ -4,10 +4,25 @@
 // for flame advantaged items, the number of lines is always 4
 const non_advantaged = { 1: 0.40, 2: 0.40, 3: 0.15, 4: 0.05 };
 
-// probability to get *at least* this many lines
-// (or probability to have each line *number*)
-// converted from probability to get a specific number of lines in *total*
-const p_num_lines = { 1: 1.0, 2: 0.6, 3: 0.2, 4: 0.05 };
+// probability computations for non-flame advantaged items
+// doing this here so the recursive function doesn't have to compute
+// the "chance to draw one more line" and instead just directly references
+// an entry in p_another_line
+
+// probability to get *at least* this many lines (aka probability to have drawn line X)
+// computed from probability to get a specific number of lines in *total*
+// P(X) = probability to draw exactly X lines in total
+// P(>=X) = probability to draw at least X lines
+// then P(>=3) = P(3) + P(4)
+// Note: i just manually computed this from non_advantaged and put the result here
+const p_line = { 1: 1.0, 2: 0.6, 3: 0.2, 4: 0.05 };
+
+// probability to draw X lines (or more) if you already drew X-1 lines
+// "chance to draw one more line"
+// P(>=X | >=(X-1)) = P(>=X) / P(>=(X-1))
+// P(>=3 | >=(2)) = P(>=3) / P(>=2)
+const p_another_line = { 1: 1.0, 2: 0.6, 3: p_line[3] / p_line[2], 4: p_line[4] / p_line[3] };
+
 
 const MAX_NUM_LINES = 4;
 
@@ -217,7 +232,7 @@ function get_max_potential_score(pool, n) {
 // and assumes that they are in order from highest to lowest max flame score potential
 // when passed in
 // This enables us to use get_max_potential_score() without re-sorting it each time
-function get_p_recursive(line, target, pool, num_junk, num_drawn, debug_data, parents) {
+function get_p_recursive(line, target, is_adv, pool, num_junk, num_drawn, debug_data, parents) {
   debug_data.count++;
   const num_remaining_items = get_num_lines(pool) + num_junk;
   let p = 0;
@@ -259,6 +274,10 @@ function get_p_recursive(line, target, pool, num_junk, num_drawn, debug_data, pa
     return p;
   }
 
+  // probability to draw one more line
+  // flame advantaged items always draw the maximum number of lines
+  const p_line_num = is_adv ? 1.0 : p_another_line[num_drawn + 1];
+
   // for each different possible target, prune the pool in case some lines
   // become junk (no possible way to sum up to target)
   for (const branch of new_targets) {
@@ -293,14 +312,14 @@ function get_p_recursive(line, target, pool, num_junk, num_drawn, debug_data, pa
         }
       }
 
-      p += p_target * (selection.count / num_remaining_items) * get_p_recursive(
-        selection.line, new_target, new_pool, num_junk, num_drawn + 1, debug_data, new_parents);
+      p += p_target * (selection.count / num_remaining_items) * p_line_num * get_p_recursive(
+        selection.line, new_target, is_adv, new_pool, num_junk, num_drawn + 1, debug_data, new_parents);
     }
 
     // recurse on all junk lines (lumped)
     if (num_junk > 0) {
-      p += p_target * (num_junk / num_remaining_items) * get_p_recursive(
-        null, new_target, pool, num_junk - 1, num_drawn + 1, debug_data, new_parents);
+      p += p_target * (num_junk / num_remaining_items) * p_line_num * get_p_recursive(
+        null, new_target, is_adv, pool, num_junk - 1, num_drawn + 1, debug_data, new_parents);
     }
   }
 
@@ -474,7 +493,7 @@ function getProbability(class_type, level, flame_type, is_adv, target, base_att)
     paths: [],
     sets: {},
   };
-  const result = get_p_recursive(null, target, valid_lines, NUM_LINE_TYPES - get_num_lines(valid_lines), 0, debug_data, []);
+  const result = get_p_recursive(null, target, is_adv, valid_lines, NUM_LINE_TYPES - get_num_lines(valid_lines), 0, debug_data, []);
   const num_flames = 1 / result;
   const stats = geoDistrQuantile(result);
   const paths = debug_paths(debug_data.paths);
