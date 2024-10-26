@@ -187,9 +187,36 @@ function get_num_lines(pool) {
 }
 
 
+
+// get the max potential flame score that can be achieved
+// by the first n lines from the pool
+// assume pool is already ordered from highest to lowest flame score
+// Note: this is only meant to be used to filter out branches that lead nowhere
+// and reduce the number of iterations for the recursive function
+function get_max_potential_score(pool, n) {
+  let score = 0;
+  let lines_used = 0;
+
+  for (let item of pool) {
+    for (let i = 0; i < item.count; i++) {
+      if (lines_used === n) {
+        return score;
+      }
+      score += item.line.f_max;
+      lines_used++;
+    }
+  }
+
+  return score;
+}
+
 // calculate the probability that the target will be met within num_draws total lines
 // num_drawn: number of lines we have already drawn from the pool
 // pool: list of valid lines that have not yet been drawn
+// Note: this function preserves the order of lines in the pool
+// and assumes that they are in order from highest to lowest max flame score potential
+// when passed in
+// This enables us to use get_max_potential_score() without re-sorting it each time
 function get_p_recursive(line, target, pool, num_junk, num_drawn, debug_data, parents) {
   debug_data.count++;
   const num_remaining_items = get_num_lines(pool) + num_junk;
@@ -240,6 +267,13 @@ function get_p_recursive(line, target, pool, num_junk, num_drawn, debug_data, pa
     const line_label = branch[2];
 
     const new_parents = line == null ? parents.slice(0) : parents.concat(line_label);
+
+    // don't pursue this branch if it's not possible to achieve the target
+    // even if the highest flame score items were drawn from the pool
+    const max_score = get_max_potential_score(pool, MAX_NUM_LINES - num_drawn);
+    if (new_target > max_score) {
+      continue;
+    }
 
     // recurse on all successor lines in pool
     // for each successor, decrement its count from the pool when recursing on it
