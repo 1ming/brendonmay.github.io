@@ -368,6 +368,42 @@ function debug_paths(paths) {
   return results;
 }
 
+// debug get unique combinations of linetype and tiers that satisfy
+// the target flame score
+// this is just to make it easier to compare results to the live website
+function debug_unique_combos(paths) {
+  const unique_combos = {};
+
+  const pattern = ".+?,(?<linetype>.+?),(?<tier>\\d),.+?,s=(?<score>.+)";
+
+  // use a string of all the linetypes and tiers as the "key" for this combo
+  // format: [total score] type1:tier, type2:tier, ...
+  for (const path of paths) {
+    let total_score = 0;
+    let items = [];
+    for (const line of path) {
+      const result = line.match(pattern);
+      const { linetype, tier, score } = result.groups;
+
+      total_score += parseFloat(score);
+      items.push(`${linetype}:${tier}`);
+    }
+    items.sort();
+    let s = `[${total_score.toString()}] ` + items.join(", ");
+
+    if (!(s in unique_combos)) {
+      unique_combos[s] = 1;
+    }
+    else {
+      unique_combos[s]++;
+    }
+
+  }
+
+  return unique_combos;
+}
+
+
 
 // calculate the probability of obtaining a target flame score
 function getProbability(class_type, level, flame_type, is_adv, target, base_att) {
@@ -402,8 +438,9 @@ function getProbability(class_type, level, flame_type, is_adv, target, base_att)
   const num_flames = 1 / result;
   const stats = geoDistrQuantile(result);
   const paths = debug_paths(debug_data.paths);
+  const unique_combos = debug_unique_combos(debug_data.paths);
 
-  console.log(`Method 1: p=${result}, flames=${num_flames}`);
+  console.log(`Method 1: p=${result}, flames=${num_flames}, unique combos=${Object.keys(unique_combos).length}, arrangements=${debug_data.success / 12}`);
 
   return result;
 }
@@ -411,13 +448,17 @@ function getProbability(class_type, level, flame_type, is_adv, target, base_att)
 // for testing
 const class_type = CLASS_TYPE.NORMAL;
 const level = 160;
+// const flame_type = "eternal";
 const flame_type = "powerful";
 const is_adv = true;
 // const target = 146  // first score that requires 4 specific lines to be drawn
 // const target = 165  // first time where method 1 and 2 diverge (i think method 1 is wrong here?)
-const target = 500;
-// const base_att = null;
-const base_att = 149;
+
+const target = 175;
+const base_att = null;
+
+// const target = 500;
+// const base_att = 149;
 
 
 getProbability(class_type, level, flame_type, is_adv, target, base_att);
