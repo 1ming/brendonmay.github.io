@@ -15,10 +15,10 @@ const TIER_PROBABILITIES = {
 };
 
 // these values will get altered by user input on the website
-// var stat_equivalences = { "all_stat": 12, "secondary_stat": 0.066667, "attack": 3, "dmg": 15 };
+var stat_equivalences = { "all_stat": 10, "secondary_stat": 0.083333, "attack": 3, "dmg": 15 };
 
 // for xenon
-var stat_equivalences = { "all_stat": 25, "secondary_stat": 0.066667, "attack": 6, "dmg": 15 };
+// var stat_equivalences = { "all_stat": 25, "attack": 6, "dmg": 15 };
 
 var stat_per_tier = {
   "120-139": 7,
@@ -81,7 +81,11 @@ function geoDistrQuantile(p) {
   return { mean: mean, median: median, seventy_fifth: seventy_fifth, eighty_fifth: eighty_fifth, nintey_fifth: nintey_fifth };
 }
 
-
+// coincidentally, both weapons and armour have 19 possible line types
+// use this value to compute how many lumped junk lines there are for probability calculations
+// Note: despite weapons having two extra lines (Dmg % and Boss Dmg %), they cannot
+// get Jump or Speed (which we lump into Junk below)
+// referenced from: https://strategywiki.org/wiki/MapleStory/Bonus_Stats
 const NUM_LINE_TYPES = 19;
 
 // categorize lines based on how they will affect flame score calculations
@@ -96,6 +100,8 @@ const LINETYPE = {
   ALLSTAT: "All Stat %",
   COMBO_XENON_DOUBLE: "Xenon Main/Main",
   ATTACK: "Attack",
+  DMG: "Damage %",  // weapons only
+  BOSS_DMG: "Boss Damage %",  // weapons only
   JUNK: "Junk",
 };
 
@@ -116,6 +122,8 @@ const FLAME_SCORE = {
   [LINETYPE.COMBO_SECOND_JUNK]: (value) => stat_equivalences.secondary_stat * value,
   [LINETYPE.ALLSTAT]: (value) => value * stat_equivalences.all_stat,
   [LINETYPE.ATTACK]: (value) => value * stat_equivalences.attack,
+  [LINETYPE.DMG]: (value) => value * stat_equivalences.dmg,
+  [LINETYPE.BOSS_DMG]: (value) => value * stat_equivalences.dmg,
 };
 
 const CLASS_TYPE = {
@@ -140,6 +148,11 @@ const CLASS_LINES = {
   }
 };
 
+// these are only found on weapons but apply to all classes
+const WEAPON_ONLY_LINES = {
+  [LINETYPE.DMG]: 1,
+  [LINETYPE.BOSS_DMG]: 1,
+};
 
 // check if a level number is within a level range string
 // data for value per tier has a level range string as key (e.g. "140-149")
@@ -256,22 +269,35 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
 }
 
 // TODO ming: decide how to organize this later
-// calculate the flame value (not flame score) of a tier based on line type and level // this is the flame number we see on the item directly (e.g. +30 STR, +5% All Stat, +4 Weapon Attack, etc)
+// calculate the flame value (not flame score) of a tier based on line type and level
+// this is the flame number we see on the item directly (e.g. +30 STR, +5% All Stat, +4 Weapon Attack, etc)
 function get_tier_value(line_type, tier, level, is_adv, base_att) {
-  if (base_att != null) {
-    // weapon flame changes based on flame advantage and base attack
-    const perc_per_tier = is_adv ? watt_per_tier_adv : watt_per_tier_non_adv;
-    for (const level_range_str in perc_per_tier) {
-      if (is_in_level_range(level_range_str, level)) {
-        return base_att * perc_per_tier[level_range_str][tier];
+  // attack flames are different for weapons vs armour
+  if (line_type === LINETYPE.ATTACK) {
+    if (base_att != null) {
+      // weapons only: depends on flame adv and base att value
+      const perc_per_tier = is_adv ? watt_per_tier_adv : watt_per_tier_non_adv;
+      for (const level_range_str in perc_per_tier) {
+        if (is_in_level_range(level_range_str, level)) {
+          return base_att * perc_per_tier[level_range_str][tier];
+        }
       }
     }
+    else {
+      // armour
+      return tier;
+    }
   }
-  else if (line_type === LINETYPE.ALLSTAT || line_type === LINETYPE.ATTACK) {
-    // 1% all stat per tier, 1 att per tier for non-weapons
+  else if (line_type === LINETYPE.ALLSTAT || line_type === LINETYPE.DMG) {
+    // 1% all stat per tier, 1% dmg per tier
     return tier;
   }
+  else if (line_type === LINETYPE.BOSS_DMG) {
+    // 2% boss dmg per tier
+    return tier * 2;
+  }
   else {
+    // stat and combo lines
     const stat_tier_dict = COMBO_LINES.includes(line_type) ? combo_stat_per_tier : stat_per_tier;
     for (const level_range_str in stat_tier_dict) {
       if (is_in_level_range(level_range_str, level)) {
@@ -286,7 +312,7 @@ function get_tier_value(line_type, tier, level, is_adv, base_att) {
 // where each data item object is {p: probability, value: flame value, score: flame score}
 // flame value: the number shown on the equip
 // flame score: the flame score calculated using the value based on line type, class type, etc
-function getLineData(line_type, level, is_adv, flame_type, class_type) {
+function getLineData(line_type, level, is_adv, flame_type, class_type, base_att) {
   const line = {
     name: line_type,
     f_max: 0,
@@ -307,7 +333,7 @@ function getLineData(line_type, level, is_adv, flame_type, class_type) {
     }
 
     line.tier_ids.push(tier);
-    const tier_value = get_tier_value(line_type, tier, level, is_adv, null);
+    const tier_value = get_tier_value(line_type, tier, level, is_adv, base_att);
     line.tiers[tier] = {
       p: p_tier,
       value: tier_value,
@@ -344,12 +370,19 @@ function debug_paths(paths) {
 
 
 // calculate the probability of obtaining a target flame score
-function getProbability(class_type, level, flame_type, is_adv, target) {
+function getProbability(class_type, level, flame_type, is_adv, target, base_att) {
   // generate pool of valid line objects containing attributes such as:
   // tiers, values, probabilities which are based on flame type used and level
   const valid_lines = [];
   for (const key in CLASS_LINES[class_type]) {
-    valid_lines.push(line_counter(getLineData(key, level, is_adv, flame_type, class_type), CLASS_LINES[class_type][key]));
+    valid_lines.push(line_counter(getLineData(key, level, is_adv, flame_type, class_type, base_att), CLASS_LINES[class_type][key]));
+  }
+
+  // also add weapon exclusive lines if the item is a weapon
+  if (base_att != null) {
+    for (const key in WEAPON_ONLY_LINES) {
+      valid_lines.push(line_counter(getLineData(key, level, is_adv, flame_type, class_type, base_att), WEAPON_ONLY_LINES[key]));
+    }
   }
 
   // sort lines in decreasing order of f_max (maximum possible flame score)
@@ -376,13 +409,15 @@ function getProbability(class_type, level, flame_type, is_adv, target) {
 }
 
 // for testing
-const class_type = CLASS_TYPE.XENON;
-const level = 150;
+const class_type = CLASS_TYPE.NORMAL;
+const level = 160;
 const flame_type = "powerful";
 const is_adv = true;
 // const target = 146  // first score that requires 4 specific lines to be drawn
 // const target = 165  // first time where method 1 and 2 diverge (i think method 1 is wrong here?)
-const target = 230
+const target = 500;
+// const base_att = null;
+const base_att = 149;
 
 
-getProbability(class_type, level, flame_type, is_adv, target);
+getProbability(class_type, level, flame_type, is_adv, target, base_att);
