@@ -4,6 +4,13 @@
 // for flame advantaged items, the number of lines is always 4
 const non_advantaged = { 1: 0.40, 2: 0.40, 3: 0.15, 4: 0.05 };
 
+// probability to get *at least* this many lines
+// (or probability to have each line *number*)
+// converted from probability to get a specific number of lines in *total*
+const p_num_lines = { 1: 1.0, 2: 0.6, 3: 0.2, 4: 0.05 };
+
+const MAX_NUM_LINES = 4;
+
 // for non-flame advantaged items, each tier is reduced by 2 (e.g. tier 3 becomes tier 1)
 const TIER_PROBABILITIES = {
   drop: { 3: 0.25, 4: 0.3, 5: 0.3, 6: 0.14, 7: 0.01 },
@@ -181,9 +188,9 @@ function get_num_lines(pool) {
 
 
 // calculate the probability that the target will be met within num_draws total lines
-// num_draws: total number of lines we can "draw"/pick out of the pool, once
+// num_drawn: number of lines we have already drawn from the pool
 // pool: list of valid lines that have not yet been drawn
-function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, parents) {
+function get_p_recursive(line, target, pool, num_junk, num_drawn, debug_data, parents) {
   debug_data.count++;
   const num_remaining_items = get_num_lines(pool) + num_junk;
   let p = 0;
@@ -221,7 +228,7 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
 
   // if there's no more draws after this, just return the probability of succeeding based
   // on this line
-  if (num_draws === 0 || pool.length === 0) {
+  if (num_drawn === MAX_NUM_LINES) {
     return p;
   }
 
@@ -254,13 +261,13 @@ function get_p_recursive(line, target, pool, num_junk, num_draws, debug_data, pa
       }
 
       p += p_target * (selection.count / num_remaining_items) * get_p_recursive(
-        selection.line, new_target, new_pool, num_junk, num_draws - 1, debug_data, new_parents);
+        selection.line, new_target, new_pool, num_junk, num_drawn + 1, debug_data, new_parents);
     }
 
     // recurse on all junk lines (lumped)
     if (num_junk > 0) {
       p += p_target * (num_junk / num_remaining_items) * get_p_recursive(
-        null, new_target, pool, num_junk - 1, num_draws - 1, debug_data, new_parents);
+        null, new_target, pool, num_junk - 1, num_drawn + 1, debug_data, new_parents);
     }
   }
 
@@ -434,13 +441,13 @@ function getProbability(class_type, level, flame_type, is_adv, target, base_att)
     paths: [],
     sets: {},
   };
-  const result = get_p_recursive(null, target, valid_lines, NUM_LINE_TYPES - get_num_lines(valid_lines), 4, debug_data, []);
+  const result = get_p_recursive(null, target, valid_lines, NUM_LINE_TYPES - get_num_lines(valid_lines), 0, debug_data, []);
   const num_flames = 1 / result;
   const stats = geoDistrQuantile(result);
   const paths = debug_paths(debug_data.paths);
   const unique_combos = debug_unique_combos(debug_data.paths);
 
-  console.log(`Method 1: p=${result}, flames=${num_flames}, unique combos=${Object.keys(unique_combos).length}, arrangements=${debug_data.success / 12}`);
+  console.log(`Method 1: p=${result}, flames=${num_flames}, unique combos=${Object.keys(unique_combos).length}, iterations=${debug_data.count}`);
 
   return result;
 }
