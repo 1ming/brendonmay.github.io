@@ -225,8 +225,7 @@ function get_max_potential_score(pool, n) {
   return score;
 }
 
-// calculate the probability that the target will be met within num_draws total lines
-// num_drawn: number of lines we have already drawn from the pool
+// calculate the probability that the target will be met
 // pool: list of valid lines that have not yet been drawn
 // Note: this function preserves the order of lines in the pool
 // and assumes that they are in order from highest to lowest max flame score potential
@@ -268,8 +267,7 @@ function get_p_recursive(line, target, is_adv, pool, num_junk, num_drawn, debug_
     }
   }
 
-  // if there's no more draws after this, just return the probability of succeeding based
-  // on this line
+  // base case: reached the maximum number of lines that can be drawn
   if (num_drawn === MAX_NUM_LINES) {
     return p;
   }
