@@ -246,17 +246,16 @@ function get_p_recursive(line, target, pool, num_junk, num_drawn, debug_data, pa
     // to indicate that it was "selected"
     for (const selection of pool) {
       const new_pool = [];
-
-      // only add the selected item to the pool if there are any left
       const new_count = selection.count - 1;
-      if (new_count > 0) {
-        new_pool.push(line_counter(selection.line, new_count));
-      }
 
       // add the other items to the pool
       for (const other_line of pool) {
         if (other_line.line !== selection.line) {
           new_pool.push(line_counter(other_line.line, other_line.count));
+        }
+        else if (new_count > 0) {
+          // only add the selected item to the pool if there are any left
+          new_pool.push(line_counter(selection.line, new_count));
         }
       }
 
