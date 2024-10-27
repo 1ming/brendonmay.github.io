@@ -121,6 +121,12 @@ const LINETYPE = {
     JUNK: "Junk",
 
     DA_HP: "DA HP",
+    DB_STR: "DB STR",
+    DB_DEX: "DB DEX",
+    COMBO_DB_LUK_STR: "Combo DB LUK/STR",
+    COMBO_DB_LUK_DEX: "Combo DB LUK/DEX",
+    COMBO_DB_STR_INT: "Combo DB STR/INT",
+    COMBO_DB_DEX_INT: "Combo DB DEX/INT",
 };
 
 const COMBO_LINES = [
@@ -128,6 +134,10 @@ const COMBO_LINES = [
     LINETYPE.COMBO_MAIN_JUNK,
     LINETYPE.COMBO_SECOND_JUNK,
     LINETYPE.COMBO_XENON_DOUBLE,
+    LINETYPE.COMBO_DB_LUK_STR,
+    LINETYPE.COMBO_DB_LUK_DEX,
+    LINETYPE.COMBO_DB_STR_INT,
+    LINETYPE.COMBO_DB_DEX_INT,
 ];
 
 // map a function to calculate flame score for each line type
@@ -143,19 +153,27 @@ const FLAME_SCORE = {
     [LINETYPE.DMG]: (value) => value * stat_equivalences.dmg,
     [LINETYPE.BOSS_DMG]: (value) => value * stat_equivalences.dmg,
     [LINETYPE.DA_HP]: (value) => value,
+    [LINETYPE.DB_STR]: (value) => value * stat_equivalences.str_stat,
+    [LINETYPE.DB_DEX]: (value) => value * stat_equivalences.dex_stat,
+    [LINETYPE.COMBO_DB_LUK_STR]: (value) => value + value * stat_equivalences.str_stat,
+    [LINETYPE.COMBO_DB_LUK_DEX]: (value) => value + value * stat_equivalences.dex_stat,
+    [LINETYPE.COMBO_DB_STR_INT]: (value) => value * stat_equivalences.str_stat,
+    [LINETYPE.COMBO_DB_DEX_INT]: (value) => value * stat_equivalences.dex_stat,
 };
 
 const CLASS_TYPE = {
-    NORMAL: "other",
+    OTHER: "other",
     XENON: "xenon",
+    DB: "db",
+    CADENA: "cadena",
+    SHADOWER: "shadower",
     DA: "da",
-    TEST: "Test",
 };
 
 // the quantity of each line type that contributes to the flame score for a class
 // used to generate the pool of valid (non-junk) lines
-const CLASS_LINES = {
-    [CLASS_TYPE.NORMAL]: {
+let CLASS_LINES = {
+    [CLASS_TYPE.OTHER]: {
         [LINETYPE.MAIN_STAT]: 1, [LINETYPE.SECONDARY_STAT]: 1, [LINETYPE.COMBO_MAIN_SECOND]: 1,
         [LINETYPE.COMBO_MAIN_JUNK]: 2, [LINETYPE.COMBO_SECOND_JUNK]: 2, [LINETYPE.ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
     },
@@ -166,10 +184,19 @@ const CLASS_LINES = {
     [CLASS_TYPE.DA]: {
         [LINETYPE.DA_HP]: 1, [LINETYPE.ATTACK]: 1,
     },
-    [CLASS_TYPE.TEST]: {
-        [LINETYPE.ATTACK]: 1, [LINETYPE.COMBO_MAIN_JUNK]: 3, [LINETYPE.MAIN_STAT]: 1,
-    }
+    [CLASS_TYPE.DB]: {
+        [LINETYPE.MAIN_STAT]: 1,
+        [LINETYPE.DB_STR]: 1, [LINETYPE.DB_DEX]: 1,  // secondary
+        [LINETYPE.COMBO_DB_LUK_STR]: 1, [LINETYPE.COMBO_DB_LUK_DEX]: 1,  // main/secondary
+        [LINETYPE.COMBO_MAIN_JUNK]: 1,  // main/junk
+        [LINETYPE.COMBO_DB_STR_INT]: 1, [LINETYPE.COMBO_DB_DEX_INT]: 1,  // secondary/junk
+        [LINETYPE.ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
+    },
 };
+
+// set shadower and cadena to match DB
+CLASS_LINES[CLASS_TYPE.CADENA] = CLASS_LINES[CLASS_TYPE.DB];
+CLASS_LINES[CLASS_TYPE.SHADOWER] = CLASS_LINES[CLASS_TYPE.DB];
 
 // these are only found on weapons but apply to all classes
 const WEAPON_ONLY_LINES = {
@@ -251,10 +278,10 @@ function get_p_recursive(line, target, is_adv, pool, num_junk, num_drawn, debug_
         for (const tier in line.tiers) {
             const p_tier = line.tiers[tier].p;
             const score_tier = line.tiers[tier].score;
-            
+
             // Note: this label is just for collecting debugging data
             // +1 to num_remaining items is because this item was from the previous draw
-            const line_label = `1/${num_remaining_items+1},${line.name}${line.id > 0 ? line.id : ""},${tier},p=${p_tier},s=${score_tier}`;
+            const line_label = `1/${num_remaining_items + 1},${line.name}${line.id > 0 ? line.id : ""},${tier},p=${p_tier},s=${score_tier}`;
 
             if (score_tier >= target) {
                 p += p_tier;
@@ -355,7 +382,7 @@ function get_tier_value(line_type, tier, level, is_adv, base_att) {
         // 2% boss dmg per tier
         return tier * 2;
     }
-    else if (line_type === LINETYPE.DA_HP){
+    else if (line_type === LINETYPE.DA_HP) {
         for (const level_range_str in hp_stat_per_tier) {
             if (is_in_level_range(level_range_str, level)) {
                 return tier * hp_stat_per_tier[level_range_str];
@@ -771,7 +798,7 @@ document.addEventListener("DOMContentLoaded", function () {
             else {
                 level = Number(level.split("-")[0]);
             }
-            
+
             const p = getProbability(maple_class, level, flame_type, !non_advantaged_item, desired_stat, item_type === 'weapon' ? base_attack : null);
 
 
