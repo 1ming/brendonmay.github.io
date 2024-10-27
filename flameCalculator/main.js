@@ -119,6 +119,8 @@ const LINETYPE = {
     DMG: "Damage %",  // weapons only
     BOSS_DMG: "Boss Damage %",  // weapons only
     JUNK: "Junk",
+
+    DA_HP: "DA HP",
 };
 
 const COMBO_LINES = [
@@ -140,11 +142,13 @@ const FLAME_SCORE = {
     [LINETYPE.ATTACK]: (value) => value * stat_equivalences.attack,
     [LINETYPE.DMG]: (value) => value * stat_equivalences.dmg,
     [LINETYPE.BOSS_DMG]: (value) => value * stat_equivalences.dmg,
+    [LINETYPE.DA_HP]: (value) => value,
 };
 
 const CLASS_TYPE = {
     NORMAL: "other",
     XENON: "xenon",
+    DA: "da",
     TEST: "Test",
 };
 
@@ -158,6 +162,9 @@ const CLASS_LINES = {
     [CLASS_TYPE.XENON]: {
         [LINETYPE.MAIN_STAT]: 3, [LINETYPE.COMBO_XENON_DOUBLE]: 3, [LINETYPE.COMBO_MAIN_JUNK]: 3,
         [LINETYPE.ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
+    },
+    [CLASS_TYPE.DA]: {
+        [LINETYPE.DA_HP]: 1, [LINETYPE.ATTACK]: 1,
     },
     [CLASS_TYPE.TEST]: {
         [LINETYPE.ATTACK]: 1, [LINETYPE.COMBO_MAIN_JUNK]: 3, [LINETYPE.MAIN_STAT]: 1,
@@ -344,6 +351,13 @@ function get_tier_value(line_type, tier, level, is_adv, base_att) {
     else if (line_type === LINETYPE.BOSS_DMG) {
         // 2% boss dmg per tier
         return tier * 2;
+    }
+    else if (line_type === LINETYPE.DA_HP){
+        for (const level_range_str in hp_stat_per_tier) {
+            if (is_in_level_range(level_range_str, level)) {
+                return tier * hp_stat_per_tier[level_range_str];
+            }
+        }
     }
     else {
         // stat and combo lines
