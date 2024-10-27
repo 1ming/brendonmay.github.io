@@ -251,7 +251,10 @@ function get_p_recursive(line, target, is_adv, pool, num_junk, num_drawn, debug_
         for (const tier in line.tiers) {
             const p_tier = line.tiers[tier].p;
             const score_tier = line.tiers[tier].score;
-            const line_label = `1/${num_remaining_items},${line.name}${line.id > 0 ? line.id : ""},${tier},p=${p_tier},s=${score_tier}`;
+            
+            // Note: this label is just for collecting debugging data
+            // +1 to num_remaining items is because this item was from the previous draw
+            const line_label = `1/${num_remaining_items+1},${line.name}${line.id > 0 ? line.id : ""},${tier},p=${p_tier},s=${score_tier}`;
 
             if (score_tier >= target) {
                 p += p_tier;
