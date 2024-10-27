@@ -127,6 +127,14 @@ const LINETYPE = {
     COMBO_DB_LUK_DEX: "Combo DB LUK/DEX",
     COMBO_DB_STR_INT: "Combo DB STR/INT",
     COMBO_DB_DEX_INT: "Combo DB DEX/INT",
+
+    KANNA_HP: "Kanna HP",
+    // NOTE need to specify as LUK instead of secondary because it uses
+    // secondary.luk_stat from the form to compute
+    // ideally, we should change to secondary to avoid this
+    KANNA_LUK: "LUK",
+    COMBO_KANNA_MAIN_LUK: "Combo Kanna Main/LUK",
+    COMBO_KANNA_LUK_JUNK: "Combo Kanna LUK/Junk",
 };
 
 const COMBO_LINES = [
@@ -138,6 +146,8 @@ const COMBO_LINES = [
     LINETYPE.COMBO_DB_LUK_DEX,
     LINETYPE.COMBO_DB_STR_INT,
     LINETYPE.COMBO_DB_DEX_INT,
+    LINETYPE.COMBO_KANNA_MAIN_LUK,
+    LINETYPE.COMBO_KANNA_LUK_JUNK,
 ];
 
 // map a function to calculate flame score for each line type
@@ -153,6 +163,10 @@ const FLAME_SCORE = {
     [LINETYPE.DMG]: (value) => value * stat_equivalences.dmg,
     [LINETYPE.BOSS_DMG]: (value) => value * stat_equivalences.dmg,
     [LINETYPE.DA_HP]: (value) => value,
+    [LINETYPE.KANNA_HP]: (value) => value * stat_equivalences.hp_stat,
+    [LINETYPE.KANNA_LUK]: (value) => value * stat_equivalences.luk_stat,
+    [LINETYPE.COMBO_KANNA_MAIN_LUK]: (value) => value + value * stat_equivalences.luk_stat,
+    [LINETYPE.COMBO_KANNA_LUK_JUNK]: (value) => value * stat_equivalences.luk_stat,
     [LINETYPE.DB_STR]: (value) => value * stat_equivalences.str_stat,
     [LINETYPE.DB_DEX]: (value) => value * stat_equivalences.dex_stat,
     [LINETYPE.COMBO_DB_LUK_STR]: (value) => value + value * stat_equivalences.str_stat,
@@ -167,6 +181,7 @@ const CLASS_TYPE = {
     DB: "db",
     CADENA: "cadena",
     SHADOWER: "shadower",
+    KANNA: "kanna",
     DA: "da",
 };
 
@@ -192,6 +207,12 @@ let CLASS_LINES = {
         [LINETYPE.COMBO_DB_STR_INT]: 1, [LINETYPE.COMBO_DB_DEX_INT]: 1,  // secondary/junk
         [LINETYPE.ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
     },
+    [CLASS_TYPE.KANNA]: {
+        [LINETYPE.MAIN_STAT]: 1, [LINETYPE.KANNA_LUK]: 1, [LINETYPE.COMBO_KANNA_MAIN_LUK]: 1,
+        [LINETYPE.COMBO_MAIN_JUNK]: 2, [LINETYPE.COMBO_KANNA_LUK_JUNK]: 2,
+        [LINETYPE.KANNA_HP]: 1,
+        [LINETYPE.ALLSTAT]: 1, [LINETYPE.ATTACK]: 1,
+    }
 };
 
 // set shadower and cadena to match DB
@@ -382,7 +403,7 @@ function get_tier_value(line_type, tier, level, is_adv, base_att) {
         // 2% boss dmg per tier
         return tier * 2;
     }
-    else if (line_type === LINETYPE.DA_HP) {
+    else if (line_type === LINETYPE.DA_HP || line_type === LINETYPE.KANNA_HP) {
         for (const level_range_str in hp_stat_per_tier) {
             if (is_in_level_range(level_range_str, level)) {
                 return tier * hp_stat_per_tier[level_range_str];
